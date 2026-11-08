@@ -1,0 +1,12 @@
+{
+  "domain": "safe_intercom",
+  "name": "SAFE Intercom",
+  "codeowners": ["@wunderwungiel"],
+  "config_flow": true,
+  "documentation": "https://github.com/wunderwungiel/ha-safe-intercom",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/wunderwungiel/ha-safe-intercom/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
