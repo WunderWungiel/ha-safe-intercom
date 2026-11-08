@@ -5,11 +5,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platform
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+    Platform,
+)
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import SafeIntercomClient
+from .api import (
+    SafeIntercomAuthError,
+    SafeIntercomClient,
+    SafeIntercomConnectionError,
+)
+from .const import DEFAULT_PORT
 
 # TODO: Platform.CAMERA, Platform.SWITCH, Platform.BUTTON, Platform.EVENT, ...
 PLATFORMS: list[Platform] = []
@@ -32,10 +44,18 @@ async def async_setup_entry(
     client = SafeIntercomClient(
         async_get_clientsession(hass),
         entry.data[CONF_HOST],
+        entry.data.get(CONF_PORT, DEFAULT_PORT),
         entry.data[CONF_USERNAME],
         entry.data[CONF_PASSWORD],
     )
-    # TODO: verify connectivity (raise ConfigEntryNotReady), start event stream.
+    try:
+        await client.async_get_network_info()
+    except SafeIntercomAuthError as err:
+        # TODO: switch to ConfigEntryAuthFailed once a reauth flow exists.
+        raise ConfigEntryError("Invalid credentials") from err
+    except SafeIntercomConnectionError as err:
+        raise ConfigEntryNotReady(str(err)) from err
+    # TODO: start event stream.
 
     entry.runtime_data = SafeIntercomData(client=client)
 

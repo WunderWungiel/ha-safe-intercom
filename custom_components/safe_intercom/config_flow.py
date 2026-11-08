@@ -2,17 +2,29 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.device_registry import format_mac
 import voluptuous as vol
 
-from .const import DEFAULT_USERNAME, DOMAIN
+from .api import (
+    SafeIntercomAuthError,
+    SafeIntercomClient,
+    SafeIntercomConnectionError,
+)
+from .const import DEFAULT_PORT, DEFAULT_USERNAME, DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
+        vol.Required(CONF_PORT, default=DEFAULT_PORT): cv.port,
         vol.Required(CONF_USERNAME, default=DEFAULT_USERNAME): str,
         vol.Required(CONF_PASSWORD): str,
     }
@@ -31,13 +43,38 @@ class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # TODO: connect to the device, map failures to errors
-            # ("cannot_connect" / "invalid_auth"), and set the unique ID
-            # from the device MAC instead of the host.
-            await self.async_set_unique_id(user_input[CONF_HOST])
-            self._abort_if_unique_id_configured()
-            return self.async_create_entry(title=user_input[CONF_HOST], data=user_input)
+            client = SafeIntercomClient(
+                async_get_clientsession(self.hass),
+                user_input[CONF_HOST],
+                user_input[CONF_PORT],
+                user_input[CONF_USERNAME],
+                user_input[CONF_PASSWORD],
+            )
+            try:
+                info = await client.async_get_network_info()
+            except SafeIntercomAuthError:
+                errors["base"] = "invalid_auth"
+            except SafeIntercomConnectionError:
+                errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected error while connecting to the intercom")
+                errors["base"] = "unknown"
+            else:
+                await self.async_set_unique_id(format_mac(info.mac_address))
+                self._abort_if_unique_id_configured(
+                    updates={
+                        CONF_HOST: user_input[CONF_HOST],
+                        CONF_PORT: user_input[CONF_PORT],
+                    }
+                )
+                return self.async_create_entry(
+                    title=info.host_name or user_input[CONF_HOST], data=user_input
+                )
 
         return self.async_show_form(
-            step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+            step_id="user",
+            data_schema=self.add_suggested_values_to_schema(
+                STEP_USER_DATA_SCHEMA, user_input
+            ),
+            errors=errors,
         )

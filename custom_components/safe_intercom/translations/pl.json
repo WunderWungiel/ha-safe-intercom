@@ -3,12 +3,14 @@
     "step": {
       "user": {
         "data": {
-          "host": "Host",
+          "host": "Adres IP",
+          "port": "Port",
           "username": "Nazwa użytkownika",
           "password": "Hasło"
         },
         "data_description": {
-          "host": "Adres IP lub nazwa hosta bramofonu."
+          "host": "Adres IP bramofonu.",
+          "port": "Port HTTP interfejsu WWW bramofonu."
         }
       }
     },

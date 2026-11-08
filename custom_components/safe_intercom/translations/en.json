@@ -3,12 +3,14 @@
     "step": {
       "user": {
         "data": {
-          "host": "Host",
+          "host": "IP address",
+          "port": "Port",
           "username": "Username",
           "password": "Password"
         },
         "data_description": {
-          "host": "IP address or hostname of the intercom."
+          "host": "IP address of the intercom.",
+          "port": "HTTP port of the intercom's web interface."
         }
       }
     },
