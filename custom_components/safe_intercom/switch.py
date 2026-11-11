@@ -110,7 +110,7 @@ class SafeIntercomRelaySwitch(SafeIntercomEntity, SwitchEntity):
                 translation_key="relay_command_failed",
                 translation_placeholders={"number": str(self._number)},
             ) from err
-        await self.coordinator.async_refresh()
+        await self.coordinator.async_refresh_until(self._number, on)
 
         # A momentary relay drops back on its own; read its state once it has.
         relay = self._relay

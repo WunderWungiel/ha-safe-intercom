@@ -1,5 +1,6 @@
 """Tests for the SAFE Intercom relay switches."""
 
+import asyncio
 from datetime import timedelta
 
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
@@ -25,8 +26,10 @@ from pytest_homeassistant_custom_component.common import (
 )
 from pytest_homeassistant_custom_component.test_util.aiohttp import (
     AiohttpClientMocker,
+    AiohttpClientMockResponse,
 )
 
+from custom_components.safe_intercom import coordinator as coordinator_module
 from custom_components.safe_intercom.const import CONF_ENABLED_RELAYS, DOMAIN
 
 from .const import HOST, MAC, NETWORK_RESPONSE, controller_response
@@ -63,10 +66,14 @@ def _mock_device(
     aioclient_mock: AiohttpClientMocker,
     status: tuple[int, int, int] = (0, 0, 0),
     alarmout_text: str = "OK\r\n",
+    controller_side_effect=None,
 ) -> None:
     aioclient_mock.clear_requests()
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
-    aioclient_mock.get(CONTROLLER_URL, text=controller_response(status))
+    if controller_side_effect:
+        aioclient_mock.get(CONTROLLER_URL, side_effect=controller_side_effect)
+    else:
+        aioclient_mock.get(CONTROLLER_URL, text=controller_response(status))
     aioclient_mock.get(ALARMOUT_URL, text=alarmout_text)
 
 
@@ -206,3 +213,52 @@ async def test_command_failure_raises(
             SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: RELAY_3}, blocking=True
         )
     assert exc_info.value.translation_key == "relay_command_failed"
+
+
+async def test_command_waits_for_stale_state(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the device lags behind the command, keep reading until it agrees."""
+    monkeypatch.setattr(coordinator_module, "CONFIRM_INTERVAL", 0)
+    await _setup(hass, aioclient_mock, entry)
+
+    reads = 0
+
+    async def lagging(method, url, data):
+        nonlocal reads
+        reads += 1
+        status = (0, 0, 1) if reads > 2 else (0, 0, 0)  # two stale reads
+        return AiohttpClientMockResponse(method, url, text=controller_response(status))
+
+    _mock_device(aioclient_mock, controller_side_effect=lagging)
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: RELAY_3}, blocking=True
+    )
+
+    assert hass.states.get(RELAY_3).state == STATE_ON
+    assert reads == 3
+
+
+async def test_refreshes_are_serialised(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """Overlapping refreshes never have two controller reads in flight."""
+    await _setup(hass, aioclient_mock, entry)
+    in_flight = peak = 0
+
+    async def slow(method, url, data):
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        await asyncio.sleep(0.01)
+        in_flight -= 1
+        return AiohttpClientMockResponse(method, url, text=controller_response())
+
+    _mock_device(aioclient_mock, controller_side_effect=slow)
+    coordinator = entry.runtime_data.coordinator
+    await asyncio.gather(coordinator.async_refresh(), coordinator.async_refresh())
+
+    assert peak == 1

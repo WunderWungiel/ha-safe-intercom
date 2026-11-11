@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,11 @@ if TYPE_CHECKING:
     from . import SafeIntercomConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
+
+# After a command the device can lag before reporting the new state, so read
+# again until it agrees: up to CONFIRM_ATTEMPTS reads, CONFIRM_INTERVAL apart.
+CONFIRM_ATTEMPTS = 6
+CONFIRM_INTERVAL = 0.5
 
 
 class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
@@ -57,3 +63,16 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
             raise ConfigEntryError("Invalid credentials") from err
         except SafeIntercomError as err:
             raise UpdateFailed(str(err)) from err
+
+    async def async_refresh_until(self, number: int, on: bool) -> None:
+        """Refresh until relay `number` reports `on`, or attempts run out.
+
+        Gives up quietly: a momentary relay may already have dropped back.
+        """
+        for attempt in range(CONFIRM_ATTEMPTS):
+            if attempt:
+                await asyncio.sleep(CONFIRM_INTERVAL)
+            await self.async_refresh()
+            relay = self.data.relay(number) if self.last_update_success else None
+            if relay is None or relay.is_on == on:
+                return
