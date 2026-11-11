@@ -75,13 +75,30 @@ The HTTP API has no call-button event in the alarm stream. The options are:
 ## Observed device behaviour (overrides the spec)
 
 - `controller_cgi?action=get` returns `StatusN=0|1` keys for relay state (the spec says
-  `OutputN=open|close`). Example: relay 3 on → `Status3=1`.
+  `OutputN=open|close`). Example: relay 3 on → `Status3=1`. Real response (3-relay controller):
+
+  ```
+  Type=3n
+  Output1=open  Delay1=2  Status1=0  CloseByCall1=close  CloseByFace1=open  CloseByNight1=close
+  Output2=open  Delay2=2  Status2=0  CloseByCall2=close  CloseByFace2=close CloseByNight2=close
+  Output3=open  Delay3=0  Status3=0  CloseByCall3=close  CloseByFace3=close CloseByNight3=close
+  PlaySound=close
+  ```
+
+  (one `key=value` per line). `Type=3n` is the 3-relay controller (spec says `1`/`3`). `OutputN`
+  meaning is unknown and ignored. `CloseByCallN` presumably maps to "trigger by call button"
+  (web UI §11), `CloseByFaceN`/`CloseByNightN` are undocumented. `PlaySound` is the
+  "door opening sound" option. Flags use `open` = on, `close` = off.
 - Relay indexing: `alarmout_cgi` `Output` is **0-based**, `controller_cgi` keys are **1-based**
   (`Output=2` ↔ `Status3`).
 - `Status=1` energises the relay (on/pulse), `Status=0` releases it.
 - **Delay semantics:** `DelayN=0` means a latching (toggle) relay that stays until commanded
-  otherwise → model as a `switch`. `DelayN>0` means a momentary relay that drops back after N
-  seconds → model as a `button`.
+  otherwise. `DelayN>0` means a momentary relay that drops back after N seconds.
+- **Every relay is a `switch`**, regardless of Delay, showing the real `StatusN`. A momentary
+  relay turns on and drops back to off by itself. This keeps the entity type stable if the user
+  changes Delay on the device.
+- `alarmout_cgi` returns `OK` on success; errors come back as HTTP 200 with a
+  `Request failed:...` body.
 - Known install: relay 1 (`Output=0`) = wicket strike, relay 2 (`Output=1`) = gate
   pulse, relay 3 (`Output=2`) = gate lights (latching). Use this for manual testing only; never
   hard-code it.

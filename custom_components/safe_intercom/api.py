@@ -27,6 +27,14 @@ class SafeIntercomAuthError(SafeIntercomError):
     """The device rejected the credentials."""
 
 
+class SafeIntercomCommandError(SafeIntercomError):
+    """The device answered but refused a command (`Request failed:...`)."""
+
+
+CONTROLLER_TYPE_3N = "3n"
+"""Controller type reported by current firmware for the 3-relay controller."""
+
+
 @dataclass(frozen=True, slots=True)
 class NetworkInfo:
     """Network parameters reported by `network_cgi?action=get`."""
@@ -34,6 +42,71 @@ class NetworkInfo:
     mac_address: str
     host_name: str | None
     ip_address: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class RelayInfo:
+    """One controller relay, as reported by `controller_cgi?action=get`.
+
+    `number` is 1-based, matching the `controller_cgi` keys.
+    """
+
+    number: int
+    delay: int
+    """Seconds until the relay drops back by itself; 0 means latching."""
+    is_on: bool
+    close_by_call: bool
+    close_by_face: bool
+    close_by_night: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ControllerInfo:
+    """Controller type and relay states."""
+
+    type: str
+    relays: tuple[RelayInfo, ...]
+    play_sound: bool
+
+    def relay(self, number: int) -> RelayInfo | None:
+        """Return the relay with the given 1-based number, if present."""
+        return next((r for r in self.relays if r.number == number), None)
+
+
+def _is_open(value: str | None) -> bool:
+    """Interpret the device's `open`/`close` flag values."""
+    return value == "open"
+
+
+def _parse_controller(data: dict[str, str]) -> ControllerInfo:
+    """Build a ControllerInfo from parsed `controller_cgi` keys."""
+    if not (controller_type := data.get("Type")):
+        raise SafeIntercomConnectionError("controller_cgi response has no Type")
+    relays: list[RelayInfo] = []
+    number = 1
+    while f"Status{number}" in data or f"Delay{number}" in data:
+        try:
+            delay = int(data.get(f"Delay{number}", "0"))
+        except ValueError as err:
+            raise SafeIntercomConnectionError(
+                f"controller_cgi returned an invalid Delay{number}"
+            ) from err
+        relays.append(
+            RelayInfo(
+                number=number,
+                delay=delay,
+                is_on=data.get(f"Status{number}") == "1",
+                close_by_call=_is_open(data.get(f"CloseByCall{number}")),
+                close_by_face=_is_open(data.get(f"CloseByFace{number}")),
+                close_by_night=_is_open(data.get(f"CloseByNight{number}")),
+            )
+        )
+        number += 1
+    return ControllerInfo(
+        type=controller_type,
+        relays=tuple(relays),
+        play_sound=_is_open(data.get("PlaySound")),
+    )
 
 
 def _parse_key_values(text: str) -> dict[str, str]:
@@ -97,5 +170,24 @@ class SafeIntercomClient:
             ip_address=data.get("IPAddress"),
         )
 
-    # TODO: firmware version, controller_cgi state + delays, alarmout_cgi relay
-    # control, snapshot, alarmchangestate_cgi event stream.
+    async def async_get_controller(self) -> ControllerInfo:
+        """Fetch the controller type, relay states and delays."""
+        text = await self._get_text("/cgi-bin/controller_cgi", {"action": "get"})
+        return _parse_controller(_parse_key_values(text))
+
+    async def async_set_relay(self, number: int, on: bool) -> None:
+        """Energise (`on`) or release a relay, by its 1-based number.
+
+        `alarmout_cgi` numbers outputs from 0, `controller_cgi` from 1; this is
+        the only place that converts between them.
+        """
+        if number < 1:
+            raise ValueError(f"Relay numbers start at 1, got {number}")
+        text = await self._get_text(
+            "/cgi-bin/alarmout_cgi",
+            {"action": "set", "Output": str(number - 1), "Status": "1" if on else "0"},
+        )
+        if "Request failed" in text:
+            raise SafeIntercomCommandError(text.strip())
+
+    # TODO: firmware version, snapshot, alarmchangestate_cgi event stream.
