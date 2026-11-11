@@ -1,5 +1,7 @@
 """Shared test data: real responses captured from a SAFE S03M-class device."""
 
+import asyncio
+
 HOST = "192.0.2.10"
 MAC = "00:5d:20:a0:35:12"
 
@@ -29,3 +31,8 @@ def controller_response(
         "CloseByCall3=close\r\nCloseByFace3=close\r\nCloseByNight3=close\r\n"
         "PlaySound=close\r\n"
     )
+
+
+async def hanging_stream(method, url, data):
+    """An alarm stream that never delivers anything, like an idle device."""
+    await asyncio.Event().wait()

@@ -32,11 +32,12 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 from custom_components.safe_intercom import coordinator as coordinator_module
 from custom_components.safe_intercom.const import CONF_ENABLED_RELAYS, DOMAIN
 
-from .const import HOST, MAC, NETWORK_RESPONSE, controller_response
+from .const import HOST, MAC, NETWORK_RESPONSE, controller_response, hanging_stream
 
 NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
 ALARMOUT_URL = f"http://{HOST}/cgi-bin/alarmout_cgi"
+ALARM_URL = f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0"
 
 RELAY_1 = "switch.intercom_relay_1"  # momentary, Delay1=2
 RELAY_2 = "switch.intercom_relay_2"
@@ -69,6 +70,7 @@ def _mock_device(
     controller_side_effect=None,
 ) -> None:
     aioclient_mock.clear_requests()
+    aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     if controller_side_effect:
         aioclient_mock.get(CONTROLLER_URL, side_effect=controller_side_effect)
@@ -138,6 +140,7 @@ async def test_unsupported_controller_has_no_switches(
     """No relays are set up for unknown controller types."""
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, text=controller_response(controller_type="1"))
+    aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
@@ -262,3 +265,37 @@ async def test_refreshes_are_serialised(
     await asyncio.gather(coordinator.async_refresh(), coordinator.async_refresh())
 
     assert peak == 1
+
+
+async def test_stream_event_updates_state(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """A relay changed elsewhere (app, button) shows up without any command."""
+    status = (0, 0, 0)
+    gate = asyncio.Event()
+
+    async def controller(method, url, data):
+        return AiohttpClientMockResponse(method, url, text=controller_response(status))
+
+    async def stream(method, url, data):
+        await gate.wait()
+        return AiohttpClientMockResponse(
+            method, url, text="2026-01-01;10:00:00;SensorOutAlarm;1;2\n"
+        )
+
+    _mock_device(aioclient_mock, controller_side_effect=controller)
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(CONTROLLER_URL, side_effect=controller)
+    aioclient_mock.get(ALARM_URL, side_effect=stream)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=False)
+    assert hass.states.get(RELAY_3).state == STATE_OFF
+
+    status = (0, 0, 1)  # changed on the device, no command from HA
+    gate.set()
+    for _ in range(10):  # let the background stream task run
+        await asyncio.sleep(0)
+    await hass.async_block_till_done(wait_background_tasks=False)
+
+    assert hass.states.get(RELAY_3).state == STATE_ON

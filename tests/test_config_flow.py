@@ -13,7 +13,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 
 from custom_components.safe_intercom.const import CONF_ENABLED_RELAYS, DOMAIN
 
-from .const import controller_response
+from .const import controller_response, hanging_stream
 
 USER_INPUT = {
     CONF_HOST: "192.0.2.10",
@@ -30,6 +30,7 @@ NETWORK_RESPONSE = (
     "Web Port=8080\r\n"
 )
 CONTROLLER_URL = "http://192.0.2.10:8080/cgi-bin/controller_cgi?action=get"
+ALARM_URL = "http://192.0.2.10:8080/cgi-bin/alarmchangestate_cgi?channel=0"
 
 
 def _mock_device(
@@ -39,6 +40,7 @@ def _mock_device(
     aioclient_mock.get(
         CONTROLLER_URL, text=controller_response(controller_type=controller_type)
     )
+    aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
 
 
 async def _start_flow(hass: HomeAssistant) -> str:

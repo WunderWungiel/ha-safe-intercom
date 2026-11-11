@@ -12,10 +12,11 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 
 from custom_components.safe_intercom.const import DOMAIN
 
-from .const import HOST, MAC, NETWORK_RESPONSE, controller_response
+from .const import HOST, MAC, NETWORK_RESPONSE, controller_response, hanging_stream
 
 NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
+ALARM_URL = f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0"
 
 
 @pytest.fixture
@@ -41,6 +42,7 @@ async def test_setup_and_unload(
     """The entry loads when the device answers, and unloads cleanly."""
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
+    aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
 
     assert await hass.config_entries.async_setup(entry.entry_id)
     assert entry.state is ConfigEntryState.LOADED

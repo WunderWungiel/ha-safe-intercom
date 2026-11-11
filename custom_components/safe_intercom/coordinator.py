@@ -11,6 +11,7 @@ from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import (
+    ALARM_SENSOR_OUT,
     ControllerInfo,
     SafeIntercomAuthError,
     SafeIntercomClient,
@@ -28,12 +29,16 @@ _LOGGER = logging.getLogger(__name__)
 CONFIRM_ATTEMPTS = 6
 CONFIRM_INTERVAL = 0.5
 
+# Event stream reconnect backoff, in seconds.
+STREAM_BACKOFF_MIN = 1
+STREAM_BACKOFF_MAX = 60
+
 
 class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
     """Holds the controller state.
 
-    Not polled: refreshed on setup and after commands. The event stream will
-    push updates later.
+    Not polled: refreshed on setup, after commands, and whenever the device's
+    alarm stream reports a relay (output) change.
     """
 
     config_entry: SafeIntercomConfigEntry
@@ -76,3 +81,29 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
             relay = self.data.relay(number) if self.last_update_success else None
             if relay is None or relay.is_on == on:
                 return
+
+    async def async_run_event_stream(self) -> None:
+        """Refresh on relay changes pushed by the device; reconnect forever.
+
+        The stream only signals *that* something changed. The state itself
+        always comes from `controller_cgi`, which is the verified source.
+        Runs until cancelled.
+        """
+        backoff = STREAM_BACKOFF_MIN
+        first = True
+        while True:
+            try:
+                if not first:
+                    # Events may have been missed while disconnected.
+                    await self.async_refresh()
+                first = False
+                async for event in self.client.async_alarm_events():
+                    backoff = STREAM_BACKOFF_MIN
+                    if event.alarm_type == ALARM_SENSOR_OUT:
+                        await self.async_refresh()
+            except SafeIntercomAuthError:
+                _LOGGER.warning("Alarm stream rejected the credentials")
+            except SafeIntercomError as err:
+                _LOGGER.debug("Alarm stream interrupted: %s", err)
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, STREAM_BACKOFF_MAX)
