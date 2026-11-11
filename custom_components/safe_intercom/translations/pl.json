@@ -49,5 +49,17 @@
       "not_loaded": "Bramofon nie jest załadowany. Upewnij się, że jest osiągalny, i spróbuj ponownie.",
       "unsupported_controller": "Typ kontrolera {controller_type} nie jest jeszcze obsługiwany."
     }
+  },
+  "entity": {
+    "switch": {
+      "relay": {
+        "name": "Przekaźnik {number}"
+      }
+    }
+  },
+  "exceptions": {
+    "relay_command_failed": {
+      "message": "Nie udało się przełączyć przekaźnika {number} w bramofonie."
+    }
   }
 }

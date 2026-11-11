@@ -25,8 +25,8 @@ from .api import (
 from .const import DEFAULT_PORT
 from .coordinator import SafeIntercomCoordinator
 
-# TODO: Platform.CAMERA, Platform.SWITCH, Platform.BUTTON, Platform.EVENT, ...
-PLATFORMS: list[Platform] = []
+# TODO: Platform.CAMERA, Platform.EVENT, ...
+PLATFORMS: list[Platform] = [Platform.SWITCH]
 
 
 @dataclass

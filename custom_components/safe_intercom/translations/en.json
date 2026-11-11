@@ -49,5 +49,17 @@
       "not_loaded": "The intercom is not loaded. Make sure it is reachable and try again.",
       "unsupported_controller": "Controller type {controller_type} is not supported yet."
     }
+  },
+  "entity": {
+    "switch": {
+      "relay": {
+        "name": "Relay {number}"
+      }
+    }
+  },
+  "exceptions": {
+    "relay_command_failed": {
+      "message": "Failed to switch relay {number} on the intercom."
+    }
   }
 }
