@@ -12,7 +12,10 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 
 from custom_components.safe_intercom.const import DOMAIN
 
-NETWORK_URL = "http://192.0.2.10/cgi-bin/network_cgi?action=get"
+from .const import HOST, MAC, NETWORK_RESPONSE, controller_response
+
+NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
+CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
 
 
 @pytest.fixture
@@ -20,9 +23,9 @@ def entry(hass: HomeAssistant) -> MockConfigEntry:
     """A config entry for a device on the default port."""
     entry = MockConfigEntry(
         domain=DOMAIN,
-        unique_id="00:5d:20:a0:35:12",
+        unique_id=MAC,
         data={
-            CONF_HOST: "192.0.2.10",
+            CONF_HOST: HOST,
             CONF_PORT: 80,
             CONF_USERNAME: "admin",
             CONF_PASSWORD: "secret",
@@ -36,10 +39,13 @@ async def test_setup_and_unload(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
 ) -> None:
     """The entry loads when the device answers, and unloads cleanly."""
-    aioclient_mock.get(NETWORK_URL, text="MACAddress=00-5d-20-a0-35-12\n")
+    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response())
 
     assert await hass.config_entries.async_setup(entry.entry_id)
     assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.mac == MAC
+    assert entry.runtime_data.coordinator.data.type == "3n"
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert entry.state is ConfigEntryState.NOT_LOADED
@@ -61,6 +67,29 @@ async def test_setup_failures(
 ) -> None:
     """Unreachable devices retry; rejected credentials fail permanently."""
     aioclient_mock.get(NETWORK_URL, **mock_kwargs)
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is state
+
+
+@pytest.mark.parametrize(
+    ("mock_kwargs", "state"),
+    [
+        ({"exc": aiohttp.ClientConnectionError()}, ConfigEntryState.SETUP_RETRY),
+        ({"text": "Request failed:Param error"}, ConfigEntryState.SETUP_RETRY),
+        ({"status": 401}, ConfigEntryState.SETUP_ERROR),
+    ],
+)
+async def test_setup_controller_failures(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+    mock_kwargs: dict,
+    state: ConfigEntryState,
+) -> None:
+    """A failing controller fetch also blocks setup."""
+    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(CONTROLLER_URL, **mock_kwargs)
 
     await hass.config_entries.async_setup(entry.entry_id)
     assert entry.state is state

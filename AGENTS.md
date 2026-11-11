@@ -97,8 +97,8 @@ The HTTP API has no call-button event in the alarm stream. The options are:
 - **Every relay is a `switch`**, regardless of Delay, showing the real `StatusN`. A momentary
   relay turns on and drops back to off by itself. This keeps the entity type stable if the user
   changes Delay on the device.
-- `alarmout_cgi` returns `OK` on success; errors come back as HTTP 200 with a
-  `Request failed:...` body.
+- `alarmout_cgi` returns `OK` on success (per spec, not yet verified on the device); errors
+  come back as HTTP 200 with a `Request failed:...` body.
 - Known install: relay 1 (`Output=0`) = wicket strike, relay 2 (`Output=1`) = gate
   pulse, relay 3 (`Output=2`) = gate lights (latching). Use this for manual testing only; never
   hard-code it.

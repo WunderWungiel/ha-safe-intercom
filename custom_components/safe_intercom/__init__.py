@@ -15,6 +15,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.device_registry import format_mac
 
 from .api import (
     SafeIntercomAuthError,
@@ -22,6 +23,7 @@ from .api import (
     SafeIntercomConnectionError,
 )
 from .const import DEFAULT_PORT
+from .coordinator import SafeIntercomCoordinator
 
 # TODO: Platform.CAMERA, Platform.SWITCH, Platform.BUTTON, Platform.EVENT, ...
 PLATFORMS: list[Platform] = []
@@ -32,6 +34,9 @@ class SafeIntercomData:
     """Runtime data stored on the config entry."""
 
     client: SafeIntercomClient
+    coordinator: SafeIntercomCoordinator
+    mac: str
+    """Normalised (colon-separated, lower-case) MAC, the base for unique IDs."""
 
 
 type SafeIntercomConfigEntry = ConfigEntry[SafeIntercomData]
@@ -49,15 +54,20 @@ async def async_setup_entry(
         entry.data[CONF_PASSWORD],
     )
     try:
-        await client.async_get_network_info()
+        network = await client.async_get_network_info()
     except SafeIntercomAuthError as err:
         # TODO: switch to ConfigEntryAuthFailed once a reauth flow exists.
         raise ConfigEntryError("Invalid credentials") from err
     except SafeIntercomConnectionError as err:
         raise ConfigEntryNotReady(str(err)) from err
+
+    coordinator = SafeIntercomCoordinator(hass, entry, client)
+    await coordinator.async_config_entry_first_refresh()
     # TODO: start event stream.
 
-    entry.runtime_data = SafeIntercomData(client=client)
+    entry.runtime_data = SafeIntercomData(
+        client=client, coordinator=coordinator, mac=format_mac(network.mac_address)
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
