@@ -6,6 +6,7 @@ standalone library. See AGENTS.md for the endpoints and verified device behaviou
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from http import HTTPStatus
 
@@ -13,6 +14,12 @@ import aiohttp
 from yarl import URL
 
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=10)
+
+# The alarm stream is long-lived. The device sends a keepalive newline every
+# 5 s, so a read that stalls far longer than that means the connection is dead.
+STREAM_TIMEOUT = aiohttp.ClientTimeout(total=None, connect=10, sock_read=20)
+
+ALARM_SENSOR_OUT = "SensorOutAlarm"
 
 
 class SafeIntercomError(Exception):
@@ -71,6 +78,42 @@ class ControllerInfo:
     def relay(self, number: int) -> RelayInfo | None:
         """Return the relay with the given 1-based number, if present."""
         return next((r for r in self.relays if r.number == number), None)
+
+
+@dataclass(frozen=True, slots=True)
+class AlarmEvent:
+    """One change reported by the `alarmchangestate_cgi` stream."""
+
+    alarm_type: str
+    active: bool
+    areas: tuple[int, ...]
+    """Motion detection zones; empty for other alarm types."""
+    sensor: int | None
+    """0-based sensor/output number for `SensorInAlarm`/`SensorOutAlarm`."""
+
+
+def parse_alarm_event(line: str) -> AlarmEvent | None:
+    """Parse one stream line; keepalives and malformed lines give None.
+
+    Format: `<date>;<time>;<alarmType>;<0|1>[;<areas>][;<sensorNo>]`. A third
+    optional field is a sensor number, except for MotionDetection where it is
+    a comma-separated list of zones.
+    """
+    parts = line.strip().split(";")
+    if len(parts) < 4 or parts[3] not in ("0", "1"):
+        return None
+    alarm_type = parts[2]
+    extra = parts[4] if len(parts) > 4 else ""
+    try:
+        if alarm_type == "MotionDetection":
+            areas = tuple(int(a) for a in extra.split(",") if a)
+            sensor = None
+        else:
+            areas = ()
+            sensor = int(extra) if extra else None
+    except ValueError:
+        return None
+    return AlarmEvent(alarm_type, parts[3] == "1", areas, sensor)
 
 
 def _is_open(value: str | None) -> bool:
@@ -190,4 +233,31 @@ class SafeIntercomClient:
         if "Request failed" in text:
             raise SafeIntercomCommandError(text.strip())
 
-    # TODO: firmware version, snapshot, alarmchangestate_cgi event stream.
+    async def async_alarm_events(self) -> AsyncIterator[AlarmEvent]:
+        """Yield alarm changes from the device's push stream.
+
+        Returns when the device closes the connection; raises
+        SafeIntercomConnectionError if it cannot be reached or goes silent.
+        """
+        url = self._base_url.with_path("/cgi-bin/alarmchangestate_cgi").with_query(
+            {"channel": "0"}
+        )
+        try:
+            async with self._session.get(
+                url, headers=self._headers, timeout=STREAM_TIMEOUT
+            ) as resp:
+                if resp.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
+                    raise SafeIntercomAuthError
+                if resp.status != HTTPStatus.OK:
+                    raise SafeIntercomConnectionError(
+                        f"Unexpected HTTP status {resp.status} from alarm stream"
+                    )
+                async for raw in resp.content:
+                    if event := parse_alarm_event(raw.decode(errors="replace")):
+                        yield event
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise SafeIntercomConnectionError(
+                f"Alarm stream from {self._base_url.host} failed: {err!r}"
+            ) from err
+
+    # TODO: firmware version, snapshot.

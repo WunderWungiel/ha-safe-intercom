@@ -9,11 +9,13 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 )
 
 from custom_components.safe_intercom.api import (
+    AlarmEvent,
     ControllerInfo,
     RelayInfo,
     SafeIntercomClient,
     SafeIntercomCommandError,
     SafeIntercomConnectionError,
+    parse_alarm_event,
 )
 
 from .const import HOST, controller_response
@@ -104,3 +106,51 @@ async def test_set_relay_invalid_number(client: SafeIntercomClient) -> None:
     """Relay numbers are 1-based."""
     with pytest.raises(ValueError):
         await client.async_set_relay(0, True)
+
+
+ALARM_URL = f"http://{HOST}/cgi-bin/alarmchangestate_cgi"
+
+
+def test_parse_alarm_event() -> None:
+    """Event lines carry date, time, type, status and optional areas/sensor."""
+    assert parse_alarm_event("2012-06-04;20:00:40;SensorOutAlarm;1;2") == AlarmEvent(
+        alarm_type="SensorOutAlarm", active=True, areas=(), sensor=2
+    )
+    assert parse_alarm_event("2012-06-04;20:00:36;MotionDetection;1;0,1") == AlarmEvent(
+        alarm_type="MotionDetection", active=True, areas=(0, 1), sensor=None
+    )
+    assert parse_alarm_event("2012-06-04;20:00:47;SensorInAlarm;0;0").active is False
+
+
+@pytest.mark.parametrize("line", ["", "\r", "garbage", "2012-06-04;20:00:40;X"])
+def test_parse_alarm_event_ignores_keepalives_and_junk(line: str) -> None:
+    """The bare keepalive newline and malformed lines yield no event."""
+    assert parse_alarm_event(line) is None
+
+
+async def test_alarm_stream_yields_events(
+    aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient
+) -> None:
+    """The stream skips keepalives and yields one event per line."""
+    aioclient_mock.get(
+        ALARM_URL,
+        text="\n2012-06-04;20:00:40;SensorOutAlarm;1;0\n\n"
+        "2012-06-04;20:00:44;SensorOutAlarm;0;0\n",
+    )
+
+    events = [event async for event in client.async_alarm_events()]
+
+    assert [e.active for e in events] == [True, False]
+    assert all(e.alarm_type == "SensorOutAlarm" for e in events)
+    assert dict(aioclient_mock.mock_calls[0][1].query) == {"channel": "0"}
+
+
+async def test_alarm_stream_connection_error(
+    aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient
+) -> None:
+    """A failed connection raises the client's own error type."""
+    aioclient_mock.get(ALARM_URL, exc=aiohttp.ClientError)
+
+    with pytest.raises(SafeIntercomConnectionError):
+        async for _ in client.async_alarm_events():
+            pass
