@@ -12,6 +12,15 @@
           "host": "Adres IP bramofonu.",
           "port": "Port HTTP interfejsu WWW bramofonu."
         }
+      },
+      "controller": {
+        "title": "Przekaźniki kontrolera",
+        "description": "Typ kontrolera: {controller_type}\n\nPrzekaźnik 1: czas trwania {delay_1} s\nPrzekaźnik 2: czas trwania {delay_2} s\nPrzekaźnik 3: czas trwania {delay_3} s\n\nCzas 0 s oznacza, że przekaźnik pozostaje załączony do czasu wyłączenia; w przeciwnym razie wyłącza się sam po upływie tego czasu. Czas trwania ustawia się w interfejsie WWW bramofonu.\n\nWybierz przekaźniki, które mają zostać dodane do Home Assistant. Możesz to zmienić później w opcji Konfiguruj.",
+        "data": {
+          "relay_1": "Przekaźnik 1",
+          "relay_2": "Przekaźnik 2",
+          "relay_3": "Przekaźnik 3"
+        }
       }
     },
     "error": {
@@ -21,6 +30,24 @@
     },
     "abort": {
       "already_configured": "Urządzenie jest już skonfigurowane"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Przekaźniki kontrolera",
+        "description": "Typ kontrolera: {controller_type}\n\nPrzekaźnik 1: czas trwania {delay_1} s\nPrzekaźnik 2: czas trwania {delay_2} s\nPrzekaźnik 3: czas trwania {delay_3} s\n\nCzas 0 s oznacza, że przekaźnik pozostaje załączony do czasu wyłączenia; w przeciwnym razie wyłącza się sam po upływie tego czasu. Czas trwania ustawia się w interfejsie WWW bramofonu.\n\nWybierz przekaźniki, które mają zostać dodane do Home Assistant.",
+        "data": {
+          "relay_1": "Przekaźnik 1",
+          "relay_2": "Przekaźnik 2",
+          "relay_3": "Przekaźnik 3"
+        }
+      }
+    },
+    "abort": {
+      "cannot_connect": "Nie można nawiązać połączenia",
+      "not_loaded": "Bramofon nie jest załadowany. Upewnij się, że jest osiągalny, i spróbuj ponownie.",
+      "unsupported_controller": "Typ kontrolera {controller_type} nie jest jeszcze obsługiwany."
     }
   }
 }

@@ -12,6 +12,15 @@
           "host": "IP address of the intercom.",
           "port": "HTTP port of the intercom's web interface."
         }
+      },
+      "controller": {
+        "title": "Controller relays",
+        "description": "Controller type: {controller_type}\n\nRelay 1: delay {delay_1} s\nRelay 2: delay {delay_2} s\nRelay 3: delay {delay_3} s\n\nA delay of 0 s means the relay latches until switched off; otherwise it switches off by itself after the delay. Delays are set in the intercom's web interface.\n\nChoose which relays to add to Home Assistant. You can change this later with Configure.",
+        "data": {
+          "relay_1": "Relay 1",
+          "relay_2": "Relay 2",
+          "relay_3": "Relay 3"
+        }
       }
     },
     "error": {
@@ -21,6 +30,24 @@
     },
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "[%key:component::safe_intercom::config::step::controller::title%]",
+        "description": "Controller type: {controller_type}\n\nRelay 1: delay {delay_1} s\nRelay 2: delay {delay_2} s\nRelay 3: delay {delay_3} s\n\nA delay of 0 s means the relay latches until switched off; otherwise it switches off by itself after the delay. Delays are set in the intercom's web interface.\n\nChoose which relays to add to Home Assistant.",
+        "data": {
+          "relay_1": "[%key:component::safe_intercom::config::step::controller::data::relay_1%]",
+          "relay_2": "[%key:component::safe_intercom::config::step::controller::data::relay_2%]",
+          "relay_3": "[%key:component::safe_intercom::config::step::controller::data::relay_3%]"
+        }
+      }
+    },
+    "abort": {
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "not_loaded": "The intercom is not loaded. Make sure it is reachable and try again.",
+      "unsupported_controller": "Controller type {controller_type} is not supported yet."
     }
   }
 }

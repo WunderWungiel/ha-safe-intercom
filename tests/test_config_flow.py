@@ -11,7 +11,9 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
     AiohttpClientMocker,
 )
 
-from custom_components.safe_intercom.const import DOMAIN
+from custom_components.safe_intercom.const import CONF_ENABLED_RELAYS, DOMAIN
+
+from .const import controller_response
 
 USER_INPUT = {
     CONF_HOST: "192.0.2.10",
@@ -27,6 +29,16 @@ NETWORK_RESPONSE = (
     "HostName=Intercom\r\n"
     "Web Port=8080\r\n"
 )
+CONTROLLER_URL = "http://192.0.2.10:8080/cgi-bin/controller_cgi?action=get"
+
+
+def _mock_device(
+    aioclient_mock: AiohttpClientMocker, controller_type: str = "3n"
+) -> None:
+    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(
+        CONTROLLER_URL, text=controller_response(controller_type=controller_type)
+    )
 
 
 async def _start_flow(hass: HomeAssistant) -> str:
@@ -42,14 +54,33 @@ async def test_user_flow_creates_entry(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     """Valid credentials create an entry keyed by the device MAC."""
-    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    _mock_device(aioclient_mock)
     flow_id = await _start_flow(hass)
 
     result = await hass.config_entries.flow.async_configure(flow_id, USER_INPUT)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "controller"
+    assert result["description_placeholders"] == {
+        "controller_type": "3n",
+        "delay_1": "2",
+        "delay_2": "2",
+        "delay_3": "0",
+    }
+    # All relays are offered and enabled by default.
+    assert {key: key.default() for key in result["data_schema"].schema} == {
+        "relay_1": True,
+        "relay_2": True,
+        "relay_3": True,
+    }
+
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {"relay_1": True, "relay_2": False, "relay_3": True}
+    )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Intercom"
     assert result["data"] == USER_INPUT
+    assert result["options"] == {CONF_ENABLED_RELAYS: [1, 3]}
     assert result["result"].unique_id == "00:5d:20:a0:35:12"
 
     # The configured port is used and credentials go via Basic auth, not the URL.
@@ -96,9 +127,48 @@ async def test_user_flow_errors_then_recovers(
     assert result["errors"] == {"base": error}
 
     aioclient_mock.clear_requests()
-    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    _mock_device(aioclient_mock)
     result = await hass.config_entries.flow.async_configure(flow_id, USER_INPUT)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "controller"
+
+
+@pytest.mark.parametrize(
+    ("mock_kwargs", "error"),
+    [
+        ({"status": 401}, "invalid_auth"),
+        ({"exc": aiohttp.ClientConnectionError()}, "cannot_connect"),
+        ({"text": "Request failed:Param error"}, "cannot_connect"),
+    ],
+)
+async def test_user_flow_controller_errors(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    mock_kwargs: dict,
+    error: str,
+) -> None:
+    """A failing controller fetch shows an error on the connection form."""
+    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(CONTROLLER_URL, **mock_kwargs)
+    flow_id = await _start_flow(hass)
+
+    result = await hass.config_entries.flow.async_configure(flow_id, USER_INPUT)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert result["errors"] == {"base": error}
+
+
+async def test_user_flow_unsupported_controller(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Unknown controller types skip the relay step and enable nothing."""
+    _mock_device(aioclient_mock, controller_type="1")
+    flow_id = await _start_flow(hass)
+
+    result = await hass.config_entries.flow.async_configure(flow_id, USER_INPUT)
+
     assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["options"] == {CONF_ENABLED_RELAYS: []}
 
 
 async def test_user_flow_already_configured_updates_host(
@@ -111,7 +181,7 @@ async def test_user_flow_already_configured_updates_host(
         data={**USER_INPUT, CONF_HOST: "192.0.2.99", CONF_PORT: 80},
     )
     entry.add_to_hass(hass)
-    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    _mock_device(aioclient_mock)
     flow_id = await _start_flow(hass)
 
     result = await hass.config_entries.flow.async_configure(flow_id, USER_INPUT)
