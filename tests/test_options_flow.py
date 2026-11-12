@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import aiohttp
+from homeassistant.components.http import ApiConfig
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import (
     CONF_HOST,
@@ -157,9 +158,13 @@ async def test_options_shows_http_event_settings(
 async def test_options_http_event_settings_https(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
 ) -> None:
-    """HTTPS and the default port are shown as the device expects them."""
+    """HTTPS and the default port are shown as the device expects them.
+
+    With no local IP known, a host name is still better than nothing.
+    """
     hass.config.internal_url = "https://ha.local"
     await _setup(hass, aioclient_mock, entry)
+    hass.config.api = None
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
 
@@ -167,11 +172,51 @@ async def test_options_http_event_settings_https(
     assert result["description_placeholders"]["ha_host"] == "ha.local:443"
 
 
+@pytest.mark.parametrize(
+    ("internal_url", "use_ssl", "protocol"),
+    [
+        ("http://homeassistant.local:8123", False, "HTTP"),
+        ("https://ha.example.com", True, "HTTPS"),
+    ],
+)
+async def test_options_prefers_local_ip_over_host_name(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+    internal_url: str,
+    use_ssl: bool,
+    protocol: str,
+) -> None:
+    """The intercom likely can't resolve host names, so suggest HA's own IP."""
+    hass.config.internal_url = internal_url
+    await _setup(hass, aioclient_mock, entry)
+    hass.config.api = ApiConfig("192.0.2.60", "0.0.0.0", 8123, use_ssl)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["description_placeholders"]["ha_protocol"] == protocol
+    assert result["description_placeholders"]["ha_host"] == "192.0.2.60:8123"
+
+
+async def test_options_keeps_ip_internal_url(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """An internal URL that already uses an IP wins over the detected one."""
+    hass.config.internal_url = "http://192.0.2.50:8123"
+    await _setup(hass, aioclient_mock, entry)
+    hass.config.api = ApiConfig("192.0.2.60", "0.0.0.0", 8123, False)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["description_placeholders"]["ha_host"] == "192.0.2.50:8123"
+
+
 async def test_options_without_url(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
 ) -> None:
     """Without a known local URL the form still opens, with a fallback hint."""
     await _setup(hass, aioclient_mock, entry)
+    hass.config.api = None
 
     with patch(
         "custom_components.safe_intercom.config_flow.get_url",

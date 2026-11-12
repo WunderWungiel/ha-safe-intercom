@@ -79,7 +79,7 @@ whose parameter runs into trailing text, would not match. Strip whitespace from 
 decides whether anything more is needed (for example, accepting `call` as a prefix). Tests:
 `"event=call\r\n"` in the body gives `call`.
 
-### C2: suggest an address the intercom can reach
+### C2: suggest an address the intercom can reach (done)
 
 `_http_event_placeholders` uses `get_url(allow_external=False)`. That returns
 `hass.config.internal_url` as configured, which may be `homeassistant.local` (2015 firmware

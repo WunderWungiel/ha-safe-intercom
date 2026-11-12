@@ -25,6 +25,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.network import NoURLAvailableError, get_url
+from homeassistant.util.network import is_ip_address
 import voluptuous as vol
 from yarl import URL
 
@@ -132,14 +133,28 @@ def _http_event_placeholders(
     """What to enter in the intercom's HTTP event settings for the call button.
 
     The device's host field takes `host[:port]` only, and the protocol is a
-    separate choice, so the URL is split accordingly.
+    separate choice, so the URL is split accordingly. An IP address is
+    preferred: the intercom's firmware is unlikely to resolve `.local` or
+    other local host names, so a configured internal URL with a host name
+    gives way to the IP Home Assistant detected for itself.
     """
+    url: URL | None
     try:
         url = URL(get_url(hass, allow_external=False, allow_cloud=False))
     except NoURLAvailableError:
-        protocol, host = "HTTP", "<Home Assistant IP>:8123"
-    else:
+        url = None
+    api = hass.config.api
+    if url is not None and url.host and is_ip_address(url.host):
         protocol, host = (url.scheme or "http").upper(), f"{url.host}:{url.port}"
+    elif api is not None:
+        protocol, host = (
+            ("HTTPS" if api.use_ssl else "HTTP"),
+            f"{api.local_ip}:{api.port}",
+        )
+    elif url is not None:
+        protocol, host = (url.scheme or "http").upper(), f"{url.host}:{url.port}"
+    else:
+        protocol, host = "HTTP", "<Home Assistant IP>:8123"
     return {
         "ha_protocol": protocol,
         "ha_host": host,
