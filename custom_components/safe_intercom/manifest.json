@@ -1,6 +1,7 @@
 {
   "domain": "safe_intercom",
   "name": "SAFE Intercom",
+  "categories": ["security_safety.doorbells_intercoms", "security_safety.cameras"],
   "codeowners": ["@wunderwungiel"],
   "config_flow": true,
   "documentation": "https://github.com/wunderwungiel/ha-safe-intercom",
