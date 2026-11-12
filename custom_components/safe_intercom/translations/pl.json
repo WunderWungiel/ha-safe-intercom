@@ -21,6 +21,14 @@
           "relay_2": "Przekaźnik 2",
           "relay_3": "Przekaźnik 3"
         }
+      },
+      "reauth_confirm": {
+        "title": "Ponowne uwierzytelnienie",
+        "description": "Bramofon odrzucił zapisane dane logowania. Podaj aktualne.",
+        "data": {
+          "username": "Nazwa użytkownika",
+          "password": "Hasło"
+        }
       }
     },
     "error": {
@@ -29,7 +37,9 @@
       "unknown": "Nieoczekiwany błąd"
     },
     "abort": {
-      "already_configured": "Urządzenie jest już skonfigurowane"
+      "already_configured": "Urządzenie jest już skonfigurowane",
+      "reauth_successful": "Uwierzytelnienie zakończone pomyślnie",
+      "wrong_device": "Pod tym adresem odpowiada inny bramofon."
     }
   },
   "options": {

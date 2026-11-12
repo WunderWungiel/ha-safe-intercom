@@ -325,3 +325,60 @@ async def test_poll_recovers_after_failed_refresh(
     )
     await hass.async_block_till_done(wait_background_tasks=False)
     assert hass.states.get(RELAY_3).state == STATE_ON
+
+
+def _reauth_flows(hass: HomeAssistant) -> list:
+    return [
+        flow
+        for flow in hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+        if flow["context"]["source"] == "reauth"
+    ]
+
+
+async def test_poll_auth_failure_starts_reauth(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """A password changed on the device starts exactly one reauth flow."""
+    await _setup(hass, aioclient_mock, entry)
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
+    aioclient_mock.get(CONTROLLER_URL, status=401)
+
+    async_fire_time_changed(
+        hass, dt_util.utcnow() + coordinator_module.FALLBACK_POLL_INTERVAL
+    )
+    await hass.async_block_till_done(wait_background_tasks=False)
+    assert len(_reauth_flows(hass)) == 1
+    assert hass.states.get(RELAY_3).state == STATE_UNAVAILABLE
+
+    async_fire_time_changed(
+        hass, dt_util.utcnow() + 2 * coordinator_module.FALLBACK_POLL_INTERVAL
+    )
+    await hass.async_block_till_done(wait_background_tasks=False)
+    assert len(_reauth_flows(hass)) == 1
+
+
+async def test_stream_auth_failure_starts_reauth_and_stops(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stream rejected with 401 starts reauth and is not retried."""
+    monkeypatch.setattr(coordinator_module, "STREAM_BACKOFF_MIN", 0)
+    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response())
+    aioclient_mock.get(ALARM_URL, status=401)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=False)
+    for _ in range(10):
+        await asyncio.sleep(0)
+    await hass.async_block_till_done(wait_background_tasks=False)
+
+    assert len(_reauth_flows(hass)) == 1
+    stream_calls = [
+        url
+        for _, url, _, _ in aioclient_mock.mock_calls
+        if url.path == "/cgi-bin/alarmchangestate_cgi"
+    ]
+    assert len(stream_calls) == 1

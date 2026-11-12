@@ -21,6 +21,14 @@
           "relay_2": "Relay 2",
           "relay_3": "Relay 3"
         }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate",
+        "description": "The intercom rejected the stored credentials. Enter the current ones.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
       }
     },
     "error": {
@@ -29,7 +37,9 @@
       "unknown": "Unexpected error"
     },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "Device is already configured",
+      "reauth_successful": "Re-authentication was successful",
+      "wrong_device": "A different intercom answers at this address."
     }
   },
   "options": {

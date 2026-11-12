@@ -21,6 +21,14 @@
           "relay_2": "Relay 2",
           "relay_3": "Relay 3"
         }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate",
+        "description": "The intercom rejected the stored credentials. Enter the current ones.",
+        "data": {
+          "username": "[%key:common::config_flow::data::username%]",
+          "password": "[%key:common::config_flow::data::password%]"
+        }
       }
     },
     "error": {
@@ -29,7 +37,9 @@
       "unknown": "[%key:common::config_flow::error::unknown%]"
     },
     "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
+      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]",
+      "wrong_device": "A different intercom answers at this address."
     }
   },
   "options": {

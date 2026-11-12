@@ -69,11 +69,17 @@ async def test_setup_failures(
     mock_kwargs: dict,
     state: ConfigEntryState,
 ) -> None:
-    """Unreachable devices retry; rejected credentials fail permanently."""
+    """Unreachable devices retry; rejected credentials start reauthentication."""
     aioclient_mock.get(NETWORK_URL, **mock_kwargs)
 
     await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
     assert entry.state is state
+    flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    if state is ConfigEntryState.SETUP_ERROR:
+        assert [flow["context"]["source"] for flow in flows] == ["reauth"]
+    else:
+        assert flows == []
 
 
 @pytest.mark.parametrize(

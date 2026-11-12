@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -12,7 +13,7 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import format_mac
@@ -21,6 +22,7 @@ import voluptuous as vol
 from .api import (
     CONTROLLER_TYPE_3N,
     ControllerInfo,
+    NetworkInfo,
     SafeIntercomAuthError,
     SafeIntercomClient,
     SafeIntercomError,
@@ -47,6 +49,33 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_PASSWORD): str,
     }
 )
+
+
+async def async_validate_input(
+    hass: HomeAssistant, data: Mapping[str, Any]
+) -> tuple[NetworkInfo, ControllerInfo]:
+    """Connect with the given settings; return what the device reports.
+
+    Raises the client's SafeIntercomError subclasses on failure.
+    """
+    client = SafeIntercomClient(
+        async_get_clientsession(hass),
+        data[CONF_HOST],
+        data[CONF_PORT],
+        data[CONF_USERNAME],
+        data[CONF_PASSWORD],
+    )
+    return await client.async_get_network_info(), await client.async_get_controller()
+
+
+def _error_key(err: Exception) -> str:
+    """Map a validation failure to a form error key."""
+    if isinstance(err, SafeIntercomAuthError):
+        return "invalid_auth"
+    if isinstance(err, SafeIntercomError):
+        return "cannot_connect"
+    _LOGGER.exception("Unexpected error while connecting to the intercom")
+    return "unknown"
 
 
 def _is_supported(controller: ControllerInfo) -> bool:
@@ -110,23 +139,10 @@ class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            client = SafeIntercomClient(
-                async_get_clientsession(self.hass),
-                user_input[CONF_HOST],
-                user_input[CONF_PORT],
-                user_input[CONF_USERNAME],
-                user_input[CONF_PASSWORD],
-            )
             try:
-                info = await client.async_get_network_info()
-                controller = await client.async_get_controller()
-            except SafeIntercomAuthError:
-                errors["base"] = "invalid_auth"
-            except SafeIntercomError:
-                errors["base"] = "cannot_connect"
-            except Exception:
-                _LOGGER.exception("Unexpected error while connecting to the intercom")
-                errors["base"] = "unknown"
+                info, controller = await async_validate_input(self.hass, user_input)
+            except Exception as err:
+                errors["base"] = _error_key(err)
             else:
                 await self.async_set_unique_id(format_mac(info.mac_address))
                 self._abort_if_unique_id_configured(
@@ -167,6 +183,56 @@ class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="controller",
             data_schema=_controller_schema(self._controller, list(SUPPORTED_RELAYS)),
             description_placeholders=_controller_placeholders(self._controller),
+        )
+
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Start reauthentication after the device rejected the credentials."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask for new credentials and check them against the same device."""
+        entry = self._get_reauth_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            try:
+                info, _ = await async_validate_input(
+                    self.hass,
+                    {
+                        CONF_PORT: DEFAULT_PORT,
+                        **entry.data,
+                        **user_input,
+                    },
+                )
+            except Exception as err:
+                errors["base"] = _error_key(err)
+            else:
+                await self.async_set_unique_id(format_mac(info.mac_address))
+                self._abort_if_unique_id_mismatch(reason="wrong_device")
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates={
+                        CONF_USERNAME: user_input[CONF_USERNAME],
+                        CONF_PASSWORD: user_input[CONF_PASSWORD],
+                    },
+                )
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_USERNAME,
+                        default=entry.data.get(CONF_USERNAME, DEFAULT_USERNAME),
+                    ): str,
+                    vol.Required(CONF_PASSWORD): str,
+                }
+            ),
+            errors=errors,
         )
 
     def _create_entry(self, enabled: list[int]) -> ConfigFlowResult:

@@ -192,3 +192,88 @@ async def test_user_flow_already_configured_updates_host(
     assert result["reason"] == "already_configured"
     assert entry.data[CONF_HOST] == "192.0.2.10"
     assert entry.data[CONF_PORT] == 8080
+
+
+OTHER_NETWORK_RESPONSE = NETWORK_RESPONSE.replace(
+    "00-5d-20-a0-35-12", "00-11-22-33-44-55"
+)
+
+
+@pytest.fixture
+def entry(hass: HomeAssistant) -> MockConfigEntry:
+    """A configured intercom on port 8080."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id="00:5d:20:a0:35:12", data=dict(USER_INPUT)
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
+async def _start_reauth(hass: HomeAssistant, entry: MockConfigEntry) -> str:
+    result = await entry.start_reauth_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+    username_key = next(k for k in result["data_schema"].schema if k == CONF_USERNAME)
+    assert username_key.default() == "admin"
+    return result["flow_id"]
+
+
+async def test_reauth_updates_credentials(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """New credentials are checked against the device and stored."""
+    _mock_device(aioclient_mock)
+    flow_id = await _start_reauth(hass, entry)
+
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_USERNAME: "admin", CONF_PASSWORD: "new"}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_PASSWORD] == "new"
+    assert entry.data[CONF_HOST] == USER_INPUT[CONF_HOST]
+    _, _, _, headers = aioclient_mock.mock_calls[0]
+    assert headers["Authorization"] == aiohttp.encode_basic_auth("admin", "new")
+
+
+async def test_reauth_invalid_auth_then_recovers(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """Wrong credentials show an error; correct ones finish the flow."""
+    aioclient_mock.get(NETWORK_URL, status=401)
+    flow_id = await _start_reauth(hass, entry)
+
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_USERNAME: "admin", CONF_PASSWORD: "wrong"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}
+
+    aioclient_mock.clear_requests()
+    _mock_device(aioclient_mock)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_USERNAME: "admin", CONF_PASSWORD: "new"}
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+
+
+async def test_reauth_wrong_device(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """A different intercom at the host aborts and leaves the entry alone."""
+    aioclient_mock.get(NETWORK_URL, text=OTHER_NETWORK_RESPONSE)
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response())
+    flow_id = await _start_reauth(hass, entry)
+    old_data = dict(entry.data)
+
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_USERNAME: "admin", CONF_PASSWORD: "new"}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "wrong_device"
+    assert dict(entry.data) == old_data

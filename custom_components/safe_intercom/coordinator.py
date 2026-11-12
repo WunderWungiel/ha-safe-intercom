@@ -8,7 +8,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryError
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import (
@@ -72,8 +72,7 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
         try:
             return await self.client.async_get_controller()
         except SafeIntercomAuthError as err:
-            # TODO: switch to ConfigEntryAuthFailed once a reauth flow exists.
-            raise ConfigEntryError("Invalid credentials") from err
+            raise ConfigEntryAuthFailed("Invalid credentials") from err
         except SafeIntercomError as err:
             raise UpdateFailed(str(err)) from err
 
@@ -95,7 +94,8 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
 
         The stream only signals *that* something changed. The state itself
         always comes from `controller_cgi`, which is the verified source.
-        Runs until cancelled.
+        Runs until cancelled, or until the device rejects the credentials
+        (then a reauth flow is started instead).
         """
         backoff = STREAM_BACKOFF_MIN
         first = True
@@ -118,8 +118,11 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
                         await self.async_refresh()
                 reason = "closed by the device"
             except SafeIntercomAuthError:
-                _LOGGER.warning("Alarm stream rejected the credentials")
-                reason = "credentials rejected"
+                # Retrying cannot help; reauthentication reloads the entry,
+                # which starts a new stream.
+                _LOGGER.debug("Alarm stream rejected the credentials")
+                self.config_entry.async_start_reauth(self.hass)
+                return
             except SafeIntercomError as err:
                 reason = str(err)
             if self._stream_connected:

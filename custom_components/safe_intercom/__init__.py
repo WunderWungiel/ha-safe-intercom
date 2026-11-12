@@ -13,7 +13,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import format_mac
 
@@ -56,8 +56,7 @@ async def async_setup_entry(
     try:
         network = await client.async_get_network_info()
     except SafeIntercomAuthError as err:
-        # TODO: switch to ConfigEntryAuthFailed once a reauth flow exists.
-        raise ConfigEntryError("Invalid credentials") from err
+        raise ConfigEntryAuthFailed("Invalid credentials") from err
     except SafeIntercomConnectionError as err:
         raise ConfigEntryNotReady(str(err)) from err
 
