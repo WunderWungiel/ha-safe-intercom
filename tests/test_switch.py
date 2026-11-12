@@ -3,6 +3,7 @@
 import asyncio
 from datetime import timedelta
 
+import aiohttp
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import (
     ATTR_ENTITY_ID,
@@ -14,6 +15,7 @@ from homeassistant.const import (
     SERVICE_TURN_ON,
     STATE_OFF,
     STATE_ON,
+    STATE_UNAVAILABLE,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -61,6 +63,10 @@ def entry(hass: HomeAssistant) -> MockConfigEntry:
     )
     entry.add_to_hass(hass)
     return entry
+
+
+def _raise_connection_error(method, url, data):
+    raise aiohttp.ClientConnectionError()
 
 
 def _mock_device(
@@ -171,9 +177,9 @@ async def test_latching_relay_on_off(
     ]
     assert hass.states.get(RELAY_3).state == STATE_OFF
 
-    # Latching relays schedule no follow-up refresh.
+    # Latching relays schedule no follow-up refresh (checked before the poll).
     _mock_device(aioclient_mock, status=(0, 0, 1))
-    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
     await hass.async_block_till_done()
     assert hass.states.get(RELAY_3).state == STATE_OFF
 
@@ -298,4 +304,22 @@ async def test_stream_event_updates_state(
         await asyncio.sleep(0)
     await hass.async_block_till_done(wait_background_tasks=False)
 
+    assert hass.states.get(RELAY_3).state == STATE_ON
+
+
+async def test_poll_recovers_after_failed_refresh(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """A failed read makes switches unavailable; the next poll brings them back."""
+    await _setup(hass, aioclient_mock, entry)
+    _mock_device(aioclient_mock, controller_side_effect=_raise_connection_error)
+    await entry.runtime_data.coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(RELAY_3).state == STATE_UNAVAILABLE
+
+    _mock_device(aioclient_mock, status=(0, 0, 1))
+    async_fire_time_changed(
+        hass, dt_util.utcnow() + coordinator_module.FALLBACK_POLL_INTERVAL
+    )
+    await hass.async_block_till_done(wait_background_tasks=False)
     assert hass.states.get(RELAY_3).state == STATE_ON

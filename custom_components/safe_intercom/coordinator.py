@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 import logging
 from typing import TYPE_CHECKING
 
@@ -29,6 +30,10 @@ _LOGGER = logging.getLogger(__name__)
 CONFIRM_ATTEMPTS = 6
 CONFIRM_INTERVAL = 0.5
 
+# The alarm stream may not report every relay change (see AGENTS.md), so the
+# controller is also read on this interval as a safety net.
+FALLBACK_POLL_INTERVAL = timedelta(seconds=30)
+
 # Event stream reconnect backoff, in seconds.
 STREAM_BACKOFF_MIN = 1
 STREAM_BACKOFF_MAX = 60
@@ -37,8 +42,8 @@ STREAM_BACKOFF_MAX = 60
 class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
     """Holds the controller state.
 
-    Not polled: refreshed on setup, after commands, and whenever the device's
-    alarm stream reports a relay (output) change.
+    Polled every 30 s as a safety net; also refreshed after commands and
+    whenever the device's alarm stream reports an output change.
     """
 
     config_entry: SafeIntercomConfigEntry
@@ -55,7 +60,8 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
             _LOGGER,
             config_entry=entry,
             name=DOMAIN,
-            update_interval=None,
+            update_interval=FALLBACK_POLL_INTERVAL,
+            always_update=False,
         )
         self.client = client
 

@@ -99,13 +99,15 @@ The HTTP API has no call-button event in the alarm stream. The options are:
   changes Delay on the device.
 - `alarmout_cgi` returns `OK` on success (per spec, not yet verified on the device); errors
   come back as HTTP 200 with a `Request failed:...` body.
-- **State freshness.** The coordinator does not poll. It refreshes after a command (re-reading
-  `controller_cgi` until the relay matches the command, up to ~3 s, because the device can lag
-  behind its own command) and whenever `alarmchangestate_cgi` emits a `SensorOutAlarm` line. The
-  stream is only a change *signal*; state always comes from `controller_cgi`. **Unverified on a
-  real device:** whether relay changes (from the app, a button or the call trigger) actually emit
-  `SensorOutAlarm`, and how long `StatusN` lags after `alarmout_cgi`. If the stream turns out not
-  to signal relay changes, add a slow poll as a safety net.
+- **State freshness.** The coordinator polls `controller_cgi` every 30 s as a safety net. It
+  also refreshes after a command (re-reading `controller_cgi` until the relay matches the
+  command, up to ~3 s, because the device can lag behind its own command) and whenever
+  `alarmchangestate_cgi` emits a `SensorOutAlarm` line. The stream is only a change *signal*;
+  state always comes from `controller_cgi`. **Unverified on a real device:** whether relay
+  changes (from the app, a button or the call trigger) actually emit `SensorOutAlarm` (spec
+  §20.1.2 suggests it covers the intercom's own alarm outputs, not the external controller),
+  and how long `StatusN` lags after `alarmout_cgi`. Without stream signals, outside changes
+  show up within 30 s.
 - Known install: relay 1 (`Output=0`) = wicket strike, relay 2 (`Output=1`) = gate
   pulse, relay 3 (`Output=2`) = gate lights (latching). Use this for manual testing only; never
   hard-code it.
