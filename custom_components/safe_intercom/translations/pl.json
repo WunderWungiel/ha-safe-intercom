@@ -29,6 +29,19 @@
           "username": "Nazwa użytkownika",
           "password": "Hasło"
         }
+      },
+      "reconfigure": {
+        "title": "Zmień konfigurację",
+        "data": {
+          "host": "Adres IP",
+          "port": "Port",
+          "username": "Nazwa użytkownika",
+          "password": "Hasło"
+        },
+        "data_description": {
+          "host": "Adres IP bramofonu.",
+          "port": "Port HTTP interfejsu WWW bramofonu."
+        }
       }
     },
     "error": {
@@ -39,7 +52,8 @@
     "abort": {
       "already_configured": "Urządzenie jest już skonfigurowane",
       "reauth_successful": "Uwierzytelnienie zakończone pomyślnie",
-      "wrong_device": "Pod tym adresem odpowiada inny bramofon."
+      "wrong_device": "Pod tym adresem odpowiada inny bramofon.",
+      "reconfigure_successful": "Konfiguracja została zmieniona"
     }
   },
   "options": {

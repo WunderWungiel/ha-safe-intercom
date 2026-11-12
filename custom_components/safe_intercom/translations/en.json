@@ -29,6 +29,19 @@
           "username": "Username",
           "password": "Password"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure",
+        "data": {
+          "host": "IP address",
+          "port": "Port",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "host": "IP address of the intercom.",
+          "port": "HTTP port of the intercom's web interface."
+        }
       }
     },
     "error": {
@@ -39,7 +52,8 @@
     "abort": {
       "already_configured": "Device is already configured",
       "reauth_successful": "Re-authentication was successful",
-      "wrong_device": "A different intercom answers at this address."
+      "wrong_device": "A different intercom answers at this address.",
+      "reconfigure_successful": "Re-configuration was successful"
     }
   },
   "options": {

@@ -235,6 +235,33 @@ class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Change the host, port or credentials of the same intercom."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            try:
+                info, _ = await async_validate_input(self.hass, user_input)
+            except Exception as err:
+                errors["base"] = _error_key(err)
+            else:
+                await self.async_set_unique_id(format_mac(info.mac_address))
+                self._abort_if_unique_id_mismatch(reason="wrong_device")
+                return self.async_update_reload_and_abort(
+                    entry, data_updates=user_input
+                )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                STEP_USER_DATA_SCHEMA, user_input or entry.data
+            ),
+            errors=errors,
+        )
+
     def _create_entry(self, enabled: list[int]) -> ConfigFlowResult:
         return self.async_create_entry(
             title=self._title,

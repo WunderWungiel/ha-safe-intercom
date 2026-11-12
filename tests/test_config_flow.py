@@ -277,3 +277,78 @@ async def test_reauth_wrong_device(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "wrong_device"
     assert dict(entry.data) == old_data
+
+
+NEW_HOST = "192.0.2.11"
+NEW_NETWORK_URL = f"http://{NEW_HOST}:8080/cgi-bin/network_cgi?action=get"
+NEW_CONTROLLER_URL = f"http://{NEW_HOST}:8080/cgi-bin/controller_cgi?action=get"
+NEW_ALARM_URL = (
+    f"http://{NEW_HOST}:8080/cgi-bin/alarmchangestate_cgi"
+    "?channel=0&parameter=SensorOutAlarm"
+)
+
+
+async def _start_reconfigure(hass: HomeAssistant, entry: MockConfigEntry) -> str:
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    suggested = {
+        str(key): key.description["suggested_value"]
+        for key in result["data_schema"].schema
+        if key.description
+    }
+    assert suggested == USER_INPUT
+    return result["flow_id"]
+
+
+async def test_reconfigure_changes_host(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """The same intercom at a new address updates the entry."""
+    aioclient_mock.get(NEW_NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(NEW_CONTROLLER_URL, text=controller_response())
+    aioclient_mock.get(NEW_ALARM_URL, side_effect=hanging_stream)
+    flow_id = await _start_reconfigure(hass, entry)
+
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {**USER_INPUT, CONF_HOST: NEW_HOST}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_HOST] == NEW_HOST
+
+
+async def test_reconfigure_wrong_device(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """Another intercom at the new address aborts without changing the entry."""
+    aioclient_mock.get(NEW_NETWORK_URL, text=OTHER_NETWORK_RESPONSE)
+    aioclient_mock.get(NEW_CONTROLLER_URL, text=controller_response())
+    flow_id = await _start_reconfigure(hass, entry)
+    old_data = dict(entry.data)
+
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {**USER_INPUT, CONF_HOST: NEW_HOST}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "wrong_device"
+    assert dict(entry.data) == old_data
+
+
+async def test_reconfigure_cannot_connect(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """An unreachable address shows an error on the form."""
+    aioclient_mock.get(NEW_NETWORK_URL, exc=aiohttp.ClientConnectionError())
+    flow_id = await _start_reconfigure(hass, entry)
+
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {**USER_INPUT, CONF_HOST: NEW_HOST}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    assert result["errors"] == {"base": "cannot_connect"}
