@@ -24,10 +24,14 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import format_mac
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 import voluptuous as vol
+from yarl import URL
 
 from .api import (
     CONTROLLER_TYPE_3N,
+    HTTP_EVENT_CALL,
+    HTTP_EVENT_KEY,
     ControllerInfo,
     NetworkInfo,
     SafeIntercomAuthError,
@@ -120,6 +124,28 @@ def _controller_placeholders(controller: ControllerInfo) -> dict[str, str]:
         relay = controller.relay(number)
         placeholders[f"delay_{number}"] = str(relay.delay) if relay else "?"
     return placeholders
+
+
+def _http_event_placeholders(
+    hass: HomeAssistant, entry: SafeIntercomConfigEntry
+) -> dict[str, str]:
+    """What to enter in the intercom's HTTP event settings for the call button.
+
+    The device's host field takes `host[:port]` only, and the protocol is a
+    separate choice, so the URL is split accordingly.
+    """
+    try:
+        url = URL(get_url(hass, allow_external=False, allow_cloud=False))
+    except NoURLAvailableError:
+        protocol, host = "HTTP", "<Home Assistant IP>:8123"
+    else:
+        protocol, host = (url.scheme or "http").upper(), f"{url.host}:{url.port}"
+    return {
+        "ha_protocol": protocol,
+        "ha_host": host,
+        "webhook_path": webhook.async_generate_path(entry.data[CONF_WEBHOOK_ID]),
+        "call_parameter": f"{HTTP_EVENT_KEY}={HTTP_EVENT_CALL}",
+    }
 
 
 def _enabled_from_input(user_input: dict[str, Any]) -> list[int]:
@@ -322,7 +348,10 @@ class SafeIntercomOptionsFlow(OptionsFlowWithReload):
         if not _is_supported(self._controller):
             return self.async_abort(
                 reason="unsupported_controller",
-                description_placeholders={"controller_type": self._controller.type},
+                description_placeholders={
+                    "controller_type": self._controller.type,
+                    **_http_event_placeholders(self.hass, entry),
+                },
             )
 
         return self.async_show_form(
@@ -330,5 +359,8 @@ class SafeIntercomOptionsFlow(OptionsFlowWithReload):
             data_schema=_controller_schema(
                 self._controller, enabled_relays(entry.options)
             ),
-            description_placeholders=_controller_placeholders(self._controller),
+            description_placeholders={
+                **_controller_placeholders(self._controller),
+                **_http_event_placeholders(self.hass, entry),
+            },
         )

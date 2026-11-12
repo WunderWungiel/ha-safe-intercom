@@ -1,10 +1,19 @@
 """Tests for the SAFE Intercom options flow (relay selection)."""
 
+from unittest.mock import patch
+
 import aiohttp
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+    CONF_WEBHOOK_ID,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.network import NoURLAvailableError
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import (
@@ -29,6 +38,8 @@ RTSP_URL = f"http://{HOST}/cgi-bin/rtsp_cgi?action=get"
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
 ALARM_URL = f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0&parameter=MotionDetection;SensorInAlarm;SensorOutAlarm"
 
+WEBHOOK_ID = "0123456789abcdef0123456789abcdef"
+
 
 @pytest.fixture
 def entry(hass: HomeAssistant) -> MockConfigEntry:
@@ -41,7 +52,9 @@ def entry(hass: HomeAssistant) -> MockConfigEntry:
             CONF_PORT: 80,
             CONF_USERNAME: "admin",
             CONF_PASSWORD: "secret",
+            CONF_WEBHOOK_ID: WEBHOOK_ID,
         },
+        minor_version=2,
         options={CONF_ENABLED_RELAYS: [1, 3]},
     )
     entry.add_to_hass(hass)
@@ -119,3 +132,66 @@ async def test_options_flow_aborts(
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == reason
+
+
+async def test_options_shows_http_event_settings(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """Configure tells the user what to enter for the call button's HTTP event."""
+    hass.config.internal_url = "http://192.0.2.50:8123"
+    await _setup(hass, aioclient_mock, entry)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    placeholders = result["description_placeholders"]
+    assert placeholders["ha_protocol"] == "HTTP"
+    assert placeholders["ha_host"] == "192.0.2.50:8123"
+    assert placeholders["webhook_path"] == f"/api/webhook/{WEBHOOK_ID}"
+    assert placeholders["call_parameter"] == "event=call"
+    assert placeholders["controller_type"] == "3n"
+
+
+async def test_options_http_event_settings_https(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """HTTPS and the default port are shown as the device expects them."""
+    hass.config.internal_url = "https://ha.local"
+    await _setup(hass, aioclient_mock, entry)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["description_placeholders"]["ha_protocol"] == "HTTPS"
+    assert result["description_placeholders"]["ha_host"] == "ha.local:443"
+
+
+async def test_options_without_url(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """Without a known local URL the form still opens, with a fallback hint."""
+    await _setup(hass, aioclient_mock, entry)
+
+    with patch(
+        "custom_components.safe_intercom.config_flow.get_url",
+        side_effect=NoURLAvailableError,
+    ):
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["description_placeholders"]["ha_protocol"] == "HTTP"
+    assert result["description_placeholders"]["ha_host"] == "<Home Assistant IP>:8123"
+
+
+async def test_unsupported_controller_still_shows_http_event_settings(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """The call button works with any controller, so its settings are shown."""
+    await _setup(hass, aioclient_mock, entry)
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response(controller_type="1"))
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["reason"] == "unsupported_controller"
+    assert result["description_placeholders"]["webhook_path"] == (
+        f"/api/webhook/{WEBHOOK_ID}"
+    )

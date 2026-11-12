@@ -61,7 +61,7 @@
     "step": {
       "init": {
         "title": "[%key:component::safe_intercom::config::step::controller::title%]",
-        "description": "Controller type: {controller_type}\n\nRelay 1: delay {delay_1} s\nRelay 2: delay {delay_2} s\nRelay 3: delay {delay_3} s\n\nA delay of 0 s means the relay latches until switched off; otherwise it switches off by itself after the delay. Delays are set in the intercom's web interface.\n\nChoose which relays to add to Home Assistant.",
+        "description": "Controller type: {controller_type}\n\nRelay 1: delay {delay_1} s\nRelay 2: delay {delay_2} s\nRelay 3: delay {delay_3} s\n\nA delay of 0 s means the relay latches until switched off; otherwise it switches off by itself after the delay. Delays are set in the intercom's web interface.\n\nChoose which relays to add to Home Assistant.\n\n**Call button:** in the intercom's web interface, open Network settings → HTTP event, enable it and set Protocol **{ha_protocol}**, Host name **{ha_host}**, Request **{webhook_path}**, Method **GET**, authentication off. Then in Recording → Call button, tick HTTP event and enter **{call_parameter}**. Keep the request path private.",
         "data": {
           "relay_1": "[%key:component::safe_intercom::config::step::controller::data::relay_1%]",
           "relay_2": "[%key:component::safe_intercom::config::step::controller::data::relay_2%]",
@@ -72,7 +72,7 @@
     "abort": {
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
       "not_loaded": "The intercom is not loaded. Make sure it is reachable and try again.",
-      "unsupported_controller": "Controller type {controller_type} is not supported yet."
+      "unsupported_controller": "Controller type {controller_type} is not supported yet.\n\n**Call button:** in the intercom's web interface, open Network settings → HTTP event, enable it and set Protocol **{ha_protocol}**, Host name **{ha_host}**, Request **{webhook_path}**, Method **GET**, authentication off. Then in Recording → Call button, tick HTTP event and enter **{call_parameter}**. Keep the request path private."
     }
   },
   "entity": {
