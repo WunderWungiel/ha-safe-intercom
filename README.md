@@ -2,8 +2,10 @@
 
 Custom integration for SAFE IP intercoms (S03M / S06 / S06M).
 
-> **Status:** early development. Controller relays work; camera, call button and push
-> updates are not implemented yet.
+> **Status:** early development. Controller relays work. Their state is read from the device
+> every 30 s, after every command, and whenever the device's alarm stream reports an output
+> change (whether the stream reports relay changes is not yet confirmed on a real device).
+> Camera and call button are not implemented yet.
 
 ## Installation (HACS)
 
@@ -19,6 +21,12 @@ Custom integration for SAFE IP intercoms (S03M / S06 / S06M).
 
 You can change the relay selection later with **Configure** on the integration's card.
 Only the 3-relay controller (`3n`) is supported so far.
+
+- **Reauthentication:** if the intercom's password changes, Home Assistant asks for the new
+  credentials.
+- **Reconfigure:** to change the IP address, port or credentials, use **Reconfigure** in the
+  integration's menu. It only accepts the same intercom (checked by MAC address).
+- **Diagnostics:** download them from the device page; credentials, host and MAC are redacted.
 
 ## Entities
 
