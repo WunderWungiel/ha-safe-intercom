@@ -33,6 +33,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 
 from custom_components.safe_intercom import coordinator as coordinator_module
 from custom_components.safe_intercom.const import CONF_ENABLED_RELAYS, DOMAIN
+from custom_components.safe_intercom.coordinator import SafeIntercomCoordinator
 
 from .const import (
     HOST,
@@ -394,3 +395,70 @@ async def test_stream_auth_failure_starts_reauth_and_stops(
         if url.path == "/cgi-bin/alarmchangestate_cgi"
     ]
     assert len(stream_calls) == 1
+
+
+async def _stream_reconnect_delays(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+    monkeypatch: pytest.MonkeyPatch,
+    clock: list[float],
+    count: int,
+) -> list[float]:
+    """Set up with a stream the device closes at once; return the first waits.
+
+    `clock` holds the monotonic times the coordinator reads, in order: one
+    pair (connected, closed) per connection.
+    """
+    times = iter(clock)
+    monkeypatch.setattr(coordinator_module, "_monotonic", lambda: next(times))
+    delays: list[float] = []
+    done = asyncio.Event()
+
+    async def fake_wait(self: SafeIntercomCoordinator, seconds: float) -> None:
+        delays.append(seconds)
+        if len(delays) == count:
+            done.set()
+            await asyncio.Event().wait()
+
+    monkeypatch.setattr(SafeIntercomCoordinator, "_async_stream_wait", fake_wait)
+
+    async def stream(method, url, data):
+        return AiohttpClientMockResponse(method, url, text="\n")
+
+    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response())
+    aioclient_mock.get(ALARM_URL, side_effect=stream)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=False)
+    await asyncio.wait_for(done.wait(), timeout=1)
+    return delays
+
+
+async def test_stream_backoff_grows_when_device_drops_at_once(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Accepting the stream and closing it at once does not reset the backoff."""
+    delays = await _stream_reconnect_delays(
+        hass, aioclient_mock, entry, monkeypatch, clock=[0.0] * 10, count=5
+    )
+    assert delays == [1, 2, 4, 8, 16]
+
+
+async def test_stream_backoff_resets_after_stable_connection(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A connection that stayed up long enough resets the backoff."""
+    stable = coordinator_module.STREAM_STABLE_AFTER
+    clock = [0.0, 0.0, 0.0, 0.0, 0.0, stable, 0.0, 0.0, 0.0, 0.0]
+    delays = await _stream_reconnect_delays(
+        hass, aioclient_mock, entry, monkeypatch, clock=clock, count=5
+    )
+    assert delays == [1, 2, 1, 2, 4]

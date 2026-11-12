@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import timedelta
 import logging
+import time
 from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant
@@ -37,6 +38,14 @@ FALLBACK_POLL_INTERVAL = timedelta(seconds=30)
 # Event stream reconnect backoff, in seconds.
 STREAM_BACKOFF_MIN = 1
 STREAM_BACKOFF_MAX = 60
+# Only a connection that stayed up this long resets the backoff. The device can
+# accept the stream and close it at once; resetting on every connect would then
+# reconnect (and re-read the controller) every second.
+STREAM_STABLE_AFTER = 30
+
+
+def _monotonic() -> float:
+    return time.monotonic()
 
 
 class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
@@ -99,15 +108,17 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
         """
         backoff = STREAM_BACKOFF_MIN
         first = True
+        connected_at: float | None = None
 
         def on_connect() -> None:
-            nonlocal backoff
-            backoff = STREAM_BACKOFF_MIN
+            nonlocal connected_at
+            connected_at = _monotonic()
             if self._stream_lost:
                 _LOGGER.info("Alarm stream from %s connected", self.client.host)
             self._stream_connected = True
 
         while True:
+            connected_at = None
             try:
                 if not first:
                     # Events may have been missed while disconnected.
@@ -125,11 +136,20 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
                 return
             except SafeIntercomError as err:
                 reason = str(err)
+            if (
+                connected_at is not None
+                and _monotonic() - connected_at >= STREAM_STABLE_AFTER
+            ):
+                backoff = STREAM_BACKOFF_MIN
             if self._stream_connected:
                 _LOGGER.info("Alarm stream lost: %s", reason)
                 self._stream_connected = False
                 self._stream_lost = True
             else:
                 _LOGGER.debug("Alarm stream unavailable: %s", reason)
-            await asyncio.sleep(backoff)
+            await self._async_stream_wait(backoff)
             backoff = min(backoff * 2, STREAM_BACKOFF_MAX)
+
+    async def _async_stream_wait(self, seconds: float) -> None:
+        """Wait before reconnecting the stream."""
+        await asyncio.sleep(seconds)
