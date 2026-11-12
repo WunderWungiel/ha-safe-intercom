@@ -4,6 +4,7 @@ import aiohttp
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import (
@@ -12,9 +13,17 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 
 from custom_components.safe_intercom.const import DOMAIN
 
-from .const import HOST, MAC, NETWORK_RESPONSE, controller_response, hanging_stream
+from .const import (
+    HOST,
+    MAC,
+    NETWORK_RESPONSE,
+    SYSTEMINFO_RESPONSE,
+    controller_response,
+    hanging_stream,
+)
 
 NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
+SYSTEMINFO_URL = f"http://{HOST}/cgi-bin/systeminfo_cgi"
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
 ALARM_URL = (
     f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0&parameter=SensorOutAlarm"
@@ -43,6 +52,7 @@ async def test_setup_and_unload(
 ) -> None:
     """The entry loads when the device answers, and unloads cleanly."""
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
 
@@ -99,6 +109,7 @@ async def test_setup_controller_failures(
 ) -> None:
     """A failing controller fetch also blocks setup."""
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, **mock_kwargs)
 
     await hass.config_entries.async_setup(entry.entry_id)
@@ -121,3 +132,49 @@ async def test_setup_wrong_device_retries(
 
     assert entry.state is ConfigEntryState.SETUP_RETRY
     assert hass.states.async_entity_ids("switch") == []
+
+
+async def test_device_info(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """The device shows model, firmware and a link to its web interface."""
+    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response())
+    aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    device = device_registry.async_get_device_by_identifier(
+        (DOMAIN, MAC), entry.entry_id
+    )
+    assert device is not None
+    assert device.model == "B1710"
+    assert device.sw_version == "2.0.0.2.52.18"
+    assert device.hw_version == "Hi3518 IP Camera"
+    assert device.configuration_url == f"http://{HOST}:80"
+
+
+async def test_setup_without_system_info(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """Firmware without systeminfo_cgi still sets up, just without a model."""
+    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(SYSTEMINFO_URL, status=404)
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response())
+    aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    device = device_registry.async_get_device_by_identifier(
+        (DOMAIN, MAC), entry.entry_id
+    )
+    assert device is not None
+    assert device.model is None

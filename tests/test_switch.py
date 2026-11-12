@@ -34,9 +34,17 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 from custom_components.safe_intercom import coordinator as coordinator_module
 from custom_components.safe_intercom.const import CONF_ENABLED_RELAYS, DOMAIN
 
-from .const import HOST, MAC, NETWORK_RESPONSE, controller_response, hanging_stream
+from .const import (
+    HOST,
+    MAC,
+    NETWORK_RESPONSE,
+    SYSTEMINFO_RESPONSE,
+    controller_response,
+    hanging_stream,
+)
 
 NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
+SYSTEMINFO_URL = f"http://{HOST}/cgi-bin/systeminfo_cgi"
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
 ALARMOUT_URL = f"http://{HOST}/cgi-bin/alarmout_cgi"
 ALARM_URL = (
@@ -80,6 +88,7 @@ def _mock_device(
     aioclient_mock.clear_requests()
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     if controller_side_effect:
         aioclient_mock.get(CONTROLLER_URL, side_effect=controller_side_effect)
     else:
@@ -147,6 +156,7 @@ async def test_unsupported_controller_has_no_switches(
 ) -> None:
     """No relays are set up for unknown controller types."""
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, text=controller_response(controller_type="1"))
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -294,6 +304,7 @@ async def test_stream_event_updates_state(
     _mock_device(aioclient_mock, controller_side_effect=controller)
     aioclient_mock.clear_requests()
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, side_effect=controller)
     aioclient_mock.get(ALARM_URL, side_effect=stream)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -367,6 +378,7 @@ async def test_stream_auth_failure_starts_reauth_and_stops(
     """A stream rejected with 401 starts reauth and is not retried."""
     monkeypatch.setattr(coordinator_module, "STREAM_BACKOFF_MIN", 0)
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(ALARM_URL, status=401)
     assert await hass.config_entries.async_setup(entry.entry_id)

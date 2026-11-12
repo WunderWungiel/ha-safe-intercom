@@ -18,11 +18,17 @@ class SafeIntercomEntity(CoordinatorEntity[SafeIntercomCoordinator]):
         """Initialize the entity; `key` makes the unique ID unique per device."""
         super().__init__(coordinator)
         entry = coordinator.config_entry
-        mac = entry.runtime_data.mac
+        data = entry.runtime_data
+        mac = data.mac
         self._attr_unique_id = f"{mac}_{key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, mac)},
             connections={(CONNECTION_NETWORK_MAC, mac)},
             manufacturer=MANUFACTURER,
             name=entry.title,
+            configuration_url=data.client.base_url,
         )
+        if (system := data.system) is not None:
+            self._attr_device_info["model"] = system.model
+            self._attr_device_info["sw_version"] = system.software_version
+            self._attr_device_info["hw_version"] = system.hardware_version

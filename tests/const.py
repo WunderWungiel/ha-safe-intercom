@@ -13,6 +13,19 @@ NETWORK_RESPONSE = (
     "Web Port=80\r\n"
 )
 
+# From the HTTP API spec §35 example, not captured from a real device. The
+# trailing changelog lines without `=` are part of the documented response.
+SYSTEMINFO_RESPONSE = (
+    "HostName=IPC12544\r\n"
+    "ChannelNum=1\r\n"
+    "Standard=PAL\r\n"
+    "DeviceID=12544\r\n"
+    "SoftwareVersion=2.0.0.2.52.18\r\n"
+    "HardwareVersion=Hi3518 IP Camera\r\n"
+    "DeviceModel=B1710\r\n"
+    "1、fix the rtsp sometimes disconnect ,then connect\r\n"
+)
+
 
 def controller_response(
     status: tuple[int, int, int] = (0, 0, 0), controller_type: str = "3n"

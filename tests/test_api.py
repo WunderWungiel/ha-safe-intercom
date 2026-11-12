@@ -16,10 +16,11 @@ from custom_components.safe_intercom.api import (
     SafeIntercomClient,
     SafeIntercomCommandError,
     SafeIntercomConnectionError,
+    SystemInfo,
     parse_alarm_event,
 )
 
-from .const import HOST, controller_response
+from .const import HOST, SYSTEMINFO_RESPONSE, controller_response
 
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
 ALARMOUT_URL = f"http://{HOST}/cgi-bin/alarmout_cgi"
@@ -193,3 +194,17 @@ async def test_alarm_stream_no_connect_signal_on_auth_error(
         async for _ in client.async_alarm_events(on_connect=lambda: connects.append(1)):
             pass
     assert connects == []
+
+
+async def test_get_system_info(
+    aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient
+) -> None:
+    """Model and versions come from systeminfo_cgi."""
+    aioclient_mock.get(
+        f"http://{HOST}/cgi-bin/systeminfo_cgi", text=SYSTEMINFO_RESPONSE
+    )
+
+    assert await client.async_get_system_info() == SystemInfo(
+        "B1710", "2.0.0.2.52.18", "Hi3518 IP Camera"
+    )
+    assert client.base_url == f"http://{HOST}:80"

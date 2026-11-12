@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -21,9 +22,12 @@ from .api import (
     SafeIntercomAuthError,
     SafeIntercomClient,
     SafeIntercomConnectionError,
+    SystemInfo,
 )
 from .const import DEFAULT_PORT
 from .coordinator import SafeIntercomCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 # TODO: Platform.CAMERA, Platform.EVENT, ...
 PLATFORMS: list[Platform] = [Platform.SWITCH]
@@ -37,6 +41,8 @@ class SafeIntercomData:
     coordinator: SafeIntercomCoordinator
     mac: str
     """Normalised (colon-separated, lower-case) MAC, the base for unique IDs."""
+    system: SystemInfo | None = None
+    """Model and versions; None if the firmware does not report them."""
 
 
 type SafeIntercomConfigEntry = ConfigEntry[SafeIntercomData]
@@ -68,11 +74,23 @@ async def async_setup_entry(
             f"found {mac}"
         )
 
+    system: SystemInfo | None
+    try:
+        system = await client.async_get_system_info()
+    except SafeIntercomAuthError as err:
+        raise ConfigEntryAuthFailed("Invalid credentials") from err
+    except SafeIntercomConnectionError as err:
+        _LOGGER.debug("No system info from %s: %s", client.host, err)
+        system = None
+
     coordinator = SafeIntercomCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = SafeIntercomData(
-        client=client, coordinator=coordinator, mac=entry.unique_id or mac
+        client=client,
+        coordinator=coordinator,
+        mac=entry.unique_id or mac,
+        system=system,
     )
 
     entry.async_create_background_task(

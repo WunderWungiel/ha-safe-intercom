@@ -52,6 +52,15 @@ class NetworkInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class SystemInfo:
+    """Device model and versions reported by `systeminfo_cgi`."""
+
+    model: str | None
+    software_version: str | None
+    hardware_version: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class RelayInfo:
     """One controller relay, as reported by `controller_cgi?action=get`.
 
@@ -187,9 +196,14 @@ class SafeIntercomClient:
         """The device's host name or address."""
         return self._base_url.host or ""
 
-    async def _get_text(self, path: str, params: dict[str, str]) -> str:
+    @property
+    def base_url(self) -> str:
+        """The device's web interface, e.g. `http://192.0.2.10:80`."""
+        return f"{self._base_url.scheme}://{self._base_url.host}:{self._base_url.port}"
+
+    async def _get_text(self, path: str, params: dict[str, str] | None = None) -> str:
         """Perform an authenticated GET and return the response body."""
-        url = self._base_url.with_path(path).with_query(params)
+        url = self._base_url.with_path(path).with_query(params or {})
         try:
             async with self._session.get(
                 url, headers=self._headers, timeout=REQUEST_TIMEOUT
@@ -216,6 +230,15 @@ class SafeIntercomClient:
             mac_address=mac,
             host_name=data.get("HostName"),
             ip_address=data.get("IPAddress"),
+        )
+
+    async def async_get_system_info(self) -> SystemInfo:
+        """Fetch the device model and firmware/hardware versions."""
+        data = _parse_key_values(await self._get_text("/cgi-bin/systeminfo_cgi"))
+        return SystemInfo(
+            model=data.get("DeviceModel"),
+            software_version=data.get("SoftwareVersion"),
+            hardware_version=data.get("HardwareVersion"),
         )
 
     async def async_get_controller(self) -> ControllerInfo:
@@ -270,4 +293,4 @@ class SafeIntercomClient:
                 f"Alarm stream from {self._base_url.host} failed: {err!r}"
             ) from err
 
-    # TODO: firmware version, snapshot.
+    # TODO: snapshot.
