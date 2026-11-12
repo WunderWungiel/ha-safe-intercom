@@ -13,7 +13,10 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import (
+    ALARM_MOTION,
+    ALARM_SENSOR_IN,
     ALARM_SENSOR_OUT,
+    AlarmEvent,
     ControllerInfo,
     SafeIntercomAuthError,
     SafeIntercomClient,
@@ -49,10 +52,12 @@ def _monotonic() -> float:
 
 
 class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
-    """Holds the controller state.
+    """Holds the controller state, plus motion and inputs from the stream.
 
-    Polled every 30 s as a safety net; also refreshed after commands and
-    whenever the device's alarm stream reports an output change.
+    The controller is polled every 30 s as a safety net; also refreshed after
+    commands and whenever the device's alarm stream reports an output change.
+    Motion and alarm inputs come only from the stream; they are forgotten
+    whenever it disconnects, since "off" lines may have been missed.
     """
 
     config_entry: SafeIntercomConfigEntry
@@ -75,6 +80,50 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
         self.client = client
         self._stream_connected = False
         self._stream_lost = False
+        self._motion_zones: set[int] = set()
+        self._inputs: dict[int, bool] = {}
+
+    @property
+    def stream_connected(self) -> bool:
+        """Whether the alarm stream is currently connected."""
+        return self._stream_connected
+
+    @property
+    def motion(self) -> bool:
+        """Whether any motion detection zone is active."""
+        return bool(self._motion_zones)
+
+    def input_state(self, number: int) -> bool | None:
+        """State of the 1-based alarm input; None until its first event."""
+        return self._inputs.get(number)
+
+    def _handle_alarm(self, event: AlarmEvent) -> None:
+        """Apply a motion or input event and notify listeners of a change."""
+        if event.alarm_type == ALARM_MOTION:
+            # A line without zones is taken as zone 0.
+            zones = set(event.areas) or {0}
+            before = set(self._motion_zones)
+            if event.active:
+                self._motion_zones |= zones
+            else:
+                self._motion_zones -= zones
+            changed = before != self._motion_zones
+        elif event.alarm_type == ALARM_SENSOR_IN and event.sensor is not None:
+            number = event.sensor + 1
+            changed = self._inputs.get(number) != event.active
+            self._inputs[number] = event.active
+        else:
+            return
+        if changed:
+            self.async_update_listeners()
+
+    def _set_stream_connected(self, connected: bool) -> None:
+        """Track the stream state; a disconnect forgets the pushed state."""
+        self._stream_connected = connected
+        if not connected:
+            self._motion_zones.clear()
+            self._inputs.clear()
+        self.async_update_listeners()
 
     async def _async_update_data(self) -> ControllerInfo:
         """Fetch the controller state."""
@@ -115,7 +164,7 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
             connected_at = _monotonic()
             if self._stream_lost:
                 _LOGGER.info("Alarm stream from %s connected", self.client.host)
-            self._stream_connected = True
+            self._set_stream_connected(True)
 
         while True:
             connected_at = None
@@ -127,11 +176,15 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
                 async for event in self.client.async_alarm_events(on_connect):
                     if event.alarm_type == ALARM_SENSOR_OUT:
                         await self.async_refresh()
+                    else:
+                        self._handle_alarm(event)
                 reason = "closed by the device"
             except SafeIntercomAuthError:
                 # Retrying cannot help; reauthentication reloads the entry,
                 # which starts a new stream.
                 _LOGGER.debug("Alarm stream rejected the credentials")
+                if self._stream_connected:
+                    self._set_stream_connected(False)
                 self.config_entry.async_start_reauth(self.hass)
                 return
             except SafeIntercomError as err:
@@ -143,7 +196,7 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
                 backoff = STREAM_BACKOFF_MIN
             if self._stream_connected:
                 _LOGGER.info("Alarm stream lost: %s", reason)
-                self._stream_connected = False
+                self._set_stream_connected(False)
                 self._stream_lost = True
             else:
                 _LOGGER.debug("Alarm stream unavailable: %s", reason)
