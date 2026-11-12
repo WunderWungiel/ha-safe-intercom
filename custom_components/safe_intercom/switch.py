@@ -19,7 +19,13 @@ from homeassistant.helpers.event import async_call_later
 
 from . import SafeIntercomConfigEntry
 from .api import CONTROLLER_TYPE_3N, RelayInfo, SafeIntercomError
-from .const import DOMAIN, SUPPORTED_RELAYS, enabled_relays
+from .const import (
+    DOMAIN,
+    RELAY_KEY_PREFIX,
+    SUPPORTED_RELAYS,
+    enabled_relays,
+    relay_key,
+)
 from .coordinator import SafeIntercomCoordinator
 from .entity import SafeIntercomEntity
 
@@ -28,10 +34,6 @@ MOMENTARY_REFRESH_MARGIN = 1
 
 # Commands go to one device; keep them sequential.
 PARALLEL_UPDATES = 1
-
-
-def _relay_key(number: int) -> str:
-    return f"relay_{number}"
 
 
 async def async_setup_entry(
@@ -49,11 +51,11 @@ async def async_setup_entry(
     # Drop entities of relays the user has since disabled, so they do not
     # linger as orphaned "unavailable" entities.
     registry = er.async_get(hass)
-    wanted = {f"{data.mac}_{_relay_key(n)}" for n in enabled}
+    wanted = {f"{data.mac}_{relay_key(n)}" for n in enabled}
     for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
         if (
             reg_entry.domain == "switch"
-            and reg_entry.unique_id.startswith(f"{data.mac}_relay_")
+            and reg_entry.unique_id.startswith(f"{data.mac}_{RELAY_KEY_PREFIX}")
             and reg_entry.unique_id not in wanted
         ):
             registry.async_remove(reg_entry.entity_id)
@@ -72,7 +74,7 @@ class SafeIntercomRelaySwitch(SafeIntercomEntity, SwitchEntity):
 
     def __init__(self, coordinator: SafeIntercomCoordinator, number: int) -> None:
         """Initialize the switch for the 1-based relay `number`."""
-        super().__init__(coordinator, _relay_key(number))
+        super().__init__(coordinator, relay_key(number))
         self._number = number
         self._attr_translation_placeholders = {"number": str(number)}
         self._cancel_delayed_refresh: Callable[[], None] | None = None

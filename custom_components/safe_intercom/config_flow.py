@@ -10,7 +10,7 @@ from homeassistant.config_entries import (
     ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
-    OptionsFlow,
+    OptionsFlowWithReload,
 )
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
 from homeassistant.core import HomeAssistant, callback
@@ -34,6 +34,7 @@ from .const import (
     DOMAIN,
     SUPPORTED_RELAYS,
     enabled_relays,
+    relay_key,
 )
 
 if TYPE_CHECKING:
@@ -83,17 +84,11 @@ def _is_supported(controller: ControllerInfo) -> bool:
     return controller.type == CONTROLLER_TYPE_3N
 
 
-def _relay_key(number: int) -> str:
-    return f"relay_{number}"
-
-
 def _controller_schema(controller: ControllerInfo, enabled: list[int]) -> vol.Schema:
     """One enable checkbox per relay the controller reports."""
     return vol.Schema(
         {
-            vol.Required(
-                _relay_key(relay.number), default=relay.number in enabled
-            ): bool
+            vol.Required(relay_key(relay.number), default=relay.number in enabled): bool
             for relay in controller.relays
             if relay.number in SUPPORTED_RELAYS
         }
@@ -110,7 +105,7 @@ def _controller_placeholders(controller: ControllerInfo) -> dict[str, str]:
 
 
 def _enabled_from_input(user_input: dict[str, Any]) -> list[int]:
-    return [n for n in SUPPORTED_RELAYS if user_input.get(_relay_key(n))]
+    return [n for n in SUPPORTED_RELAYS if user_input.get(relay_key(n))]
 
 
 class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -270,7 +265,7 @@ class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
-class SafeIntercomOptionsFlow(OptionsFlow):
+class SafeIntercomOptionsFlow(OptionsFlowWithReload):
     """Change which controller relays are exposed."""
 
     def __init__(self) -> None:
