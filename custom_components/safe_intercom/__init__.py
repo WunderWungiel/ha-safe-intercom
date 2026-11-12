@@ -60,11 +60,19 @@ async def async_setup_entry(
     except SafeIntercomConnectionError as err:
         raise ConfigEntryNotReady(str(err)) from err
 
+    mac = format_mac(network.mac_address)
+    if entry.unique_id is not None and mac != entry.unique_id:
+        # Possibly a temporary DHCP shuffle; Reconfigure fixes a permanent one.
+        raise ConfigEntryNotReady(
+            f"Expected intercom {entry.unique_id} at {entry.data[CONF_HOST]}, "
+            f"found {mac}"
+        )
+
     coordinator = SafeIntercomCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = SafeIntercomData(
-        client=client, coordinator=coordinator, mac=format_mac(network.mac_address)
+        client=client, coordinator=coordinator, mac=entry.unique_id or mac
     )
 
     entry.async_create_background_task(

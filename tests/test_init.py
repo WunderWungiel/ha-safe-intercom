@@ -103,3 +103,21 @@ async def test_setup_controller_failures(
 
     await hass.config_entries.async_setup(entry.entry_id)
     assert entry.state is state
+
+
+async def test_setup_wrong_device_retries(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """A different intercom at the host is not set up as this one."""
+    aioclient_mock.get(
+        NETWORK_URL,
+        text=NETWORK_RESPONSE.replace("00-5d-20-a0-35-12", "00-11-22-33-44-55"),
+    )
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response())
+    aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert hass.states.async_entity_ids("switch") == []
