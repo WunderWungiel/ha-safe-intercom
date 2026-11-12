@@ -1,34 +1,29 @@
 """Camera entities for the intercom's main and alternative video streams.
 
 Both streams share the device's single JPEG snapshot (`images_cgi`). The RTSP
-port and on/off switch are read from `rtsp_cgi` whenever a stream is opened, so
-changes made in the device's web interface are picked up without a reload.
+settings (on/off, port, authentication) are read from `rtsp_cgi` at setup;
+reload the entry after changing them on the device.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+from typing import override
 
 from homeassistant.components.camera import Camera, CameraEntityFeature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import SafeIntercomConfigEntry
-from .api import (
-    DEFAULT_RTSP_PORT,
-    STREAM_MAIN,
-    STREAM_SUB,
-    RtspInfo,
-    SafeIntercomError,
-)
+from .api import STREAM_MAIN, STREAM_SUB, SafeIntercomError
 from .coordinator import SafeIntercomCoordinator
 from .entity import SafeIntercomEntity
 
 _LOGGER = logging.getLogger(__name__)
 
-# One device serves all requests; snapshots of both cameras go one at a time.
-PARALLEL_UPDATES = 1
+# Coordinator-backed and read-only; camera images are not throttled by this.
+PARALLEL_UPDATES = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,35 +56,26 @@ async def async_setup_entry(
 class SafeIntercomCamera(SafeIntercomEntity, Camera):
     """One RTSP stream of the intercom, with the device's JPEG snapshot."""
 
-    _attr_supported_features = CameraEntityFeature.STREAM
-
     def __init__(
         self, coordinator: SafeIntercomCoordinator, description: StreamDescription
     ) -> None:
         """Initialize the camera."""
         SafeIntercomEntity.__init__(self, coordinator, description.key)
         Camera.__init__(self)
-        self._stream = description.stream
+        data = coordinator.config_entry.runtime_data
         self._attr_translation_key = description.key
         self._attr_entity_registry_enabled_default = description.enabled_default
-        self._rtsp: RtspInfo | None = None
-        """Last RTSP settings read from the device."""
+        self._stream_url = data.client.rtsp_url(data.rtsp, description.stream)
+        """None when RTSP is turned off; then only snapshots are offered."""
+        if self._stream_url is not None:
+            self._attr_supported_features = CameraEntityFeature.STREAM
 
+    @override
     async def stream_source(self) -> str | None:
         """Return the RTSP URL, or None if RTSP is turned off on the device."""
-        client = self.coordinator.config_entry.runtime_data.client
-        try:
-            self._rtsp = await client.async_get_rtsp_info()
-        except SafeIntercomError as err:
-            # Keep the last known settings; the stream itself will report
-            # whether the device is really gone.
-            _LOGGER.debug("Cannot read RTSP settings from %s: %s", client.host, err)
-        if self._rtsp is not None and not self._rtsp.enabled:
-            _LOGGER.debug("RTSP is turned off on %s", client.host)
-            return None
-        port = self._rtsp.port if self._rtsp is not None else DEFAULT_RTSP_PORT
-        return client.rtsp_url(port, self._stream)
+        return self._stream_url
 
+    @override
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:

@@ -19,9 +19,11 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import format_mac
 
 from .api import (
+    RtspInfo,
     SafeIntercomAuthError,
     SafeIntercomClient,
     SafeIntercomConnectionError,
+    SafeIntercomError,
     SystemInfo,
 )
 from .const import DEFAULT_PORT
@@ -43,6 +45,8 @@ class SafeIntercomData:
     """Normalised (colon-separated, lower-case) MAC, the base for unique IDs."""
     system: SystemInfo | None = None
     """Model and versions; None if the firmware does not report them."""
+    rtsp: RtspInfo | None = None
+    """RTSP settings read at setup; None if the firmware does not report them."""
 
 
 type SafeIntercomConfigEntry = ConfigEntry[SafeIntercomData]
@@ -83,6 +87,15 @@ async def async_setup_entry(
         _LOGGER.debug("No system info from %s: %s", client.host, err)
         system = None
 
+    rtsp: RtspInfo | None
+    try:
+        rtsp = await client.async_get_rtsp_info()
+    except SafeIntercomAuthError as err:
+        raise ConfigEntryAuthFailed("Invalid credentials") from err
+    except SafeIntercomError as err:
+        _LOGGER.debug("No RTSP settings from %s: %s", client.host, err)
+        rtsp = None
+
     coordinator = SafeIntercomCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
 
@@ -91,6 +104,7 @@ async def async_setup_entry(
         coordinator=coordinator,
         mac=entry.unique_id or mac,
         system=system,
+        rtsp=rtsp,
     )
 
     entry.async_create_background_task(

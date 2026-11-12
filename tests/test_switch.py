@@ -39,6 +39,7 @@ from .const import (
     HOST,
     MAC,
     NETWORK_RESPONSE,
+    RTSP_RESPONSE,
     SYSTEMINFO_RESPONSE,
     controller_response,
     hanging_stream,
@@ -46,6 +47,7 @@ from .const import (
 
 NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
 SYSTEMINFO_URL = f"http://{HOST}/cgi-bin/systeminfo_cgi"
+RTSP_URL = f"http://{HOST}/cgi-bin/rtsp_cgi?action=get"
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
 ALARMOUT_URL = f"http://{HOST}/cgi-bin/alarmout_cgi"
 ALARM_URL = (
@@ -90,6 +92,7 @@ def _mock_device(
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
     if controller_side_effect:
         aioclient_mock.get(CONTROLLER_URL, side_effect=controller_side_effect)
     else:
@@ -158,6 +161,7 @@ async def test_unsupported_controller_has_no_switches(
     """No relays are set up for unknown controller types."""
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, text=controller_response(controller_type="1"))
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -306,6 +310,7 @@ async def test_stream_event_updates_state(
     aioclient_mock.clear_requests()
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, side_effect=controller)
     aioclient_mock.get(ALARM_URL, side_effect=stream)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -380,6 +385,7 @@ async def test_stream_auth_failure_starts_reauth_and_stops(
     monkeypatch.setattr(coordinator_module, "STREAM_BACKOFF_MIN", 0)
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(ALARM_URL, status=401)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -428,6 +434,7 @@ async def _stream_reconnect_delays(
 
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(ALARM_URL, side_effect=stream)
     assert await hass.config_entries.async_setup(entry.entry_id)

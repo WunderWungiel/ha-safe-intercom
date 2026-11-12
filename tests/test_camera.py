@@ -5,6 +5,7 @@ from homeassistant.components.camera import (
     async_get_image,
     async_get_stream_source,
 )
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
@@ -36,6 +37,7 @@ from .const import (
     HOST,
     MAC,
     NETWORK_RESPONSE,
+    RTSP_RESPONSE,
     SYSTEMINFO_RESPONSE,
     controller_response,
     hanging_stream,
@@ -50,16 +52,8 @@ ALARM_URL = (
 RTSP_URL = f"http://{HOST}/cgi-bin/rtsp_cgi?action=get"
 SNAPSHOT_URL = f"http://{HOST}/cgi-bin/images_cgi?channel=0"
 
-# From the HTTP API spec §28.1 example.
-RTSP_RESPONSE = (
-    "RtspSwitch=open\r\n"
-    "RtspMode=Passivity\r\n"
-    "RtspAuth=close\r\n"
-    "RtspPacketSize=1460\r\n"
-    "RtspPort=8554\r\n"
-    "Multicast Options:\r\n"
-    "MultServer=231.0.0.222\r\n"
-)
+
+RTSP_RESPONSE_AUTH = RTSP_RESPONSE.replace("RtspAuth=close", "RtspAuth=open")
 
 JPEG = b"\xff\xd8\xff\xe0fake jpeg\xff\xd9"
 
@@ -109,12 +103,24 @@ async def test_get_rtsp_info_defaults(
 
 
 def test_rtsp_url(client: SafeIntercomClient) -> None:
-    """Credentials are percent-encoded into the RTSP URL."""
+    """Credentials are percent-encoded, and left out when RTSP auth is off."""
     assert (
-        client.rtsp_url(554, STREAM_MAIN)
+        client.rtsp_url(RtspInfo(enabled=True, port=8554, auth=True), STREAM_MAIN)
+        == f"rtsp://admin:p%40ss%3Aw%2Frd@{HOST}:8554/av0_0"
+    )
+    assert (
+        client.rtsp_url(RtspInfo(enabled=True, port=8554, auth=False), STREAM_SUB)
+        == f"rtsp://{HOST}:8554/av0_1"
+    )
+    assert (
+        client.rtsp_url(RtspInfo(enabled=False, port=554, auth=True), STREAM_MAIN)
+        is None
+    )
+    # Settings unknown: default port, credentials included to be safe.
+    assert (
+        client.rtsp_url(None, STREAM_MAIN)
         == f"rtsp://admin:p%40ss%3Aw%2Frd@{HOST}:554/av0_0"
     )
-    assert client.rtsp_url(8554, STREAM_SUB).endswith(f"@{HOST}:8554/av0_1")
 
 
 async def test_get_snapshot(
@@ -184,7 +190,7 @@ async def _setup(
             suggested_object_id="intercom_alternative_stream",
             disabled_by=None,
         )
-    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry
 
@@ -211,7 +217,9 @@ async def test_stream_sources(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     """Each camera points at its own stream, on the port the device reports."""
-    await _setup(hass, aioclient_mock, enable_sub=True)
+    await _setup(
+        hass, aioclient_mock, enable_sub=True, rtsp_kwargs={"text": RTSP_RESPONSE_AUTH}
+    )
     assert (
         await async_get_stream_source(hass, MAIN)
         == f"rtsp://admin:secret@{HOST}:8554/av0_0"
@@ -222,34 +230,57 @@ async def test_stream_sources(
     )
 
 
-async def test_stream_source_rtsp_disabled(
+async def test_stream_source_without_auth(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """No stream source when RTSP is turned off on the device."""
+    """With RTSP auth off, the URL carries no credentials."""
+    await _setup(hass, aioclient_mock)
+    assert await async_get_stream_source(hass, MAIN) == f"rtsp://{HOST}:8554/av0_0"
+
+
+async def test_stream_source_no_device_io(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """The stream source is known after setup; asking for it hits no endpoint."""
+    await _setup(hass, aioclient_mock)
+    calls = aioclient_mock.call_count
+    await async_get_stream_source(hass, MAIN)
+    await async_get_stream_source(hass, MAIN)
+    assert aioclient_mock.call_count == calls
+
+
+async def test_rtsp_disabled_snapshot_only(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """With RTSP off the camera offers no stream but still shows snapshots."""
     await _setup(hass, aioclient_mock, rtsp_kwargs={"text": "RtspSwitch=close\r\n"})
+    assert hass.states.get(MAIN).attributes["supported_features"] == 0
     assert await async_get_stream_source(hass, MAIN) is None
+    assert (await async_get_image(hass, MAIN)).content == JPEG
 
 
-async def test_stream_source_rtsp_info_unavailable(
+async def test_rtsp_info_unavailable_uses_defaults(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """Without RTSP settings, the default port is used."""
-    await _setup(hass, aioclient_mock, rtsp_kwargs={"status": 404})
+    """Firmware without rtsp_cgi still loads, using the default port."""
+    entry = await _setup(hass, aioclient_mock, rtsp_kwargs={"status": 404})
+    assert entry.state is ConfigEntryState.LOADED
     assert (
         await async_get_stream_source(hass, MAIN)
         == f"rtsp://admin:secret@{HOST}:554/av0_0"
     )
 
 
-async def test_stream_source_keeps_last_rtsp_info(
+async def test_rtsp_info_auth_error_starts_reauth(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """A failed settings read reuses the last known port."""
-    await _setup(hass, aioclient_mock)
-    assert (await async_get_stream_source(hass, MAIN)).endswith(":8554/av0_0")
-    aioclient_mock.clear_requests()
-    aioclient_mock.get(RTSP_URL, exc=aiohttp.ClientError)
-    assert (await async_get_stream_source(hass, MAIN)).endswith(":8554/av0_0")
+    """Rejected credentials on rtsp_cgi fail setup and start reauth."""
+    entry = await _setup(hass, aioclient_mock, rtsp_kwargs={"status": 401})
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert any(
+        flow["context"]["source"] == "reauth"
+        for flow in hass.config_entries.flow.async_progress()
+    )
 
 
 async def test_camera_image(

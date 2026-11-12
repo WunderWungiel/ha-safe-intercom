@@ -17,6 +17,7 @@ from .const import (
     HOST,
     MAC,
     NETWORK_RESPONSE,
+    RTSP_RESPONSE,
     SYSTEMINFO_RESPONSE,
     controller_response,
     hanging_stream,
@@ -24,6 +25,7 @@ from .const import (
 
 NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
 SYSTEMINFO_URL = f"http://{HOST}/cgi-bin/systeminfo_cgi"
+RTSP_URL = f"http://{HOST}/cgi-bin/rtsp_cgi?action=get"
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
 ALARM_URL = (
     f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0&parameter=SensorOutAlarm"
@@ -50,6 +52,7 @@ async def test_diagnostics_redacts_credentials(
     entry.add_to_hass(hass)
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     assert await hass.config_entries.async_setup(entry.entry_id)

@@ -13,7 +13,12 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 
 from custom_components.safe_intercom.const import CONF_ENABLED_RELAYS, DOMAIN
 
-from .const import SYSTEMINFO_RESPONSE, controller_response, hanging_stream
+from .const import (
+    RTSP_RESPONSE,
+    SYSTEMINFO_RESPONSE,
+    controller_response,
+    hanging_stream,
+)
 
 USER_INPUT = {
     CONF_HOST: "192.0.2.10",
@@ -23,6 +28,7 @@ USER_INPUT = {
 }
 NETWORK_URL = "http://192.0.2.10:8080/cgi-bin/network_cgi?action=get"
 SYSTEMINFO_URL = "http://192.0.2.10:8080/cgi-bin/systeminfo_cgi"
+RTSP_URL = "http://192.0.2.10:8080/cgi-bin/rtsp_cgi?action=get"
 NETWORK_RESPONSE = (
     "BootProto=none\r\n"
     "IPAddress=192.0.2.10\r\n"
@@ -39,6 +45,7 @@ def _mock_device(
 ) -> None:
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
     aioclient_mock.get(
         CONTROLLER_URL, text=controller_response(controller_type=controller_type)
     )
@@ -154,6 +161,7 @@ async def test_user_flow_controller_errors(
     """A failing controller fetch shows an error on the connection form."""
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, **mock_kwargs)
     flow_id = await _start_flow(hass)
 
@@ -285,6 +293,7 @@ async def test_reauth_wrong_device(
 NEW_HOST = "192.0.2.11"
 NEW_NETWORK_URL = f"http://{NEW_HOST}:8080/cgi-bin/network_cgi?action=get"
 NEW_SYSTEMINFO_URL = f"http://{NEW_HOST}:8080/cgi-bin/systeminfo_cgi"
+NEW_RTSP_URL = f"http://{NEW_HOST}:8080/cgi-bin/rtsp_cgi?action=get"
 NEW_CONTROLLER_URL = f"http://{NEW_HOST}:8080/cgi-bin/controller_cgi?action=get"
 NEW_ALARM_URL = (
     f"http://{NEW_HOST}:8080/cgi-bin/alarmchangestate_cgi"
@@ -312,6 +321,7 @@ async def test_reconfigure_changes_host(
     """The same intercom at a new address updates the entry."""
     aioclient_mock.get(NEW_NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(NEW_SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(NEW_RTSP_URL, text=RTSP_RESPONSE)
     aioclient_mock.get(NEW_CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(NEW_ALARM_URL, side_effect=hanging_stream)
     flow_id = await _start_reconfigure(hass, entry)
@@ -340,6 +350,7 @@ async def test_reconfigure_password(
     """An empty password keeps the stored one; a new one replaces it."""
     aioclient_mock.get(NEW_NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(NEW_SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(NEW_RTSP_URL, text=RTSP_RESPONSE)
     aioclient_mock.get(NEW_CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(NEW_ALARM_URL, side_effect=hanging_stream)
     flow_id = await _start_reconfigure(hass, entry)

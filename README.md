@@ -36,8 +36,11 @@ Only the 3-relay controller (`3n`) is supported so far.
 - **Alternative stream** (`av0_1`, lower resolution): disabled by default. Enable it on the
   device page if you want a lighter feed for dashboards.
 
-Both show the same JPEG snapshot from the intercom. RTSP must be enabled in the intercom's web
-interface (Network settings → RTSP); the port is read from the device each time a stream starts.
+Both show the same JPEG snapshot from the intercom. Live video needs RTSP enabled in the
+intercom's web interface (Network settings → RTSP); with RTSP off the cameras show snapshots
+only. The RTSP settings (on/off, port, authentication) are read when the integration loads, so
+reload it after changing them. The stream must be H.264: Home Assistant cannot play MJPEG
+streams.
 
 ### Relays
 

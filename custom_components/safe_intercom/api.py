@@ -327,18 +327,24 @@ class SafeIntercomClient:
             auth=_is_open(data.get("RtspAuth")),
         )
 
-    def rtsp_url(self, port: int, stream: int) -> str:
-        """Return the RTSP URL of `stream` (STREAM_MAIN/STREAM_SUB), with credentials.
+    def rtsp_url(self, rtsp: RtspInfo | None, stream: int) -> str | None:
+        """Return the RTSP URL of `stream` (STREAM_MAIN/STREAM_SUB).
 
-        The result contains the password; never log it.
+        `rtsp` is the device's RTSP settings, or None if they are unknown (then
+        the default port is used and credentials are included). Returns None
+        when RTSP is turned off. The result may contain the password; never
+        log it.
         """
+        if rtsp is not None and not rtsp.enabled:
+            return None
+        with_auth = rtsp is None or rtsp.auth
         return str(
             URL.build(
                 scheme="rtsp",
-                user=self._username,
-                password=self._password,
+                user=self._username if with_auth else None,
+                password=self._password if with_auth else None,
                 host=self.host,
-                port=port,
+                port=rtsp.port if rtsp is not None else DEFAULT_RTSP_PORT,
                 path=f"/av0_{stream}",
             )
         )

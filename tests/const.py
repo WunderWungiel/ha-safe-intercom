@@ -49,3 +49,15 @@ def controller_response(
 async def hanging_stream(method, url, data):
     """An alarm stream that never delivers anything, like an idle device."""
     await asyncio.Event().wait()
+
+
+# From the HTTP API spec §28.1 example.
+RTSP_RESPONSE = (
+    "RtspSwitch=open\r\n"
+    "RtspMode=Passivity\r\n"
+    "RtspAuth=close\r\n"
+    "RtspPacketSize=1460\r\n"
+    "RtspPort=8554\r\n"
+    "Multicast Options:\r\n"
+    "MultServer=231.0.0.222\r\n"
+)
