@@ -53,9 +53,10 @@ the real device; prefer it.
 - `rtsp://<host>/av0_0` (main stream), `rtsp://<host>/av0_1` (sub stream)
 - `GET /cgi-bin/images_cgi?channel=0`: JPEG snapshot (errors: HTTP 200 + `Request failed:...`)
 - `GET /cgi-bin/rtsp_cgi?action=get`: `RtspSwitch`, `RtspAuth`, `RtspPort` (default 554).
-  The integration builds `rtsp://user:pass@host:port/av0_N`. The web UI manual (§8.8) instead
-  shows `.../av0_0&user=<u>&password=<p>` for RTSP auth; **not yet verified** which one the
-  device accepts.
+  Read once at setup. The integration builds `rtsp://user:pass@host:port/av0_N`, and leaves
+  the credentials out only when the device reports `RtspAuth=close`. The web UI manual (§8.8)
+  instead shows `.../av0_0&user=<u>&password=<p>`; that form is not used (HA's log redaction
+  would not hide the password in it). `rtsp_cgi` needs admin rights (spec §28).
 - `GET /cgi-bin/alarmout_cgi?action=set&Output=<0..7>&Status=<0|1>`: drive a relay output
 - `GET /cgi-bin/controller_cgi?action=get`: controller type, relay states, per-relay `DelayN`
 - `GET /cgi-bin/alarmchangestate_cgi?channel=0[&parameter=MotionDetection;SensorInAlarm;SensorOutAlarm]`:
@@ -114,6 +115,10 @@ The HTTP API has no call-button event in the alarm stream. The options are:
   as the intercom's own alarm outputs. Still unverified: changes caused by the call-button
   trigger or a physical button, which `<sensorNo>` each relay maps to, and how long `StatusN`
   lags after `alarmout_cgi`.
+- **Verified (S06A, firmware 3.1.5.0.7.18.36):** with RTSP authentication on, Home Assistant
+  plays the stream from `rtsp://user:pass@host:port/av0_N`. Not checked: whether the manual's
+  `&user=&password=` form also works, and the stream codecs (`videocoding_cgi`, shown in
+  diagnostics).
 - `systeminfo_cgi` works as in spec §35. Real values: `DeviceModel=S06A`,
   `SoftwareVersion=3.1.5.0.7.18.36`, `HardwareVersion=Hi3518 IP Camera`.
 - Known install: relay 1 (`Output=0`) = wicket strike, relay 2 (`Output=1`) = gate
