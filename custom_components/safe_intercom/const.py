@@ -30,3 +30,8 @@ def enabled_relays(options: Mapping[str, Any]) -> list[int]:
 def relay_key(number: int) -> str:
     """Return the key for the 1-based relay `number`, e.g. `relay_3`."""
     return f"{RELAY_KEY_PREFIX}{number}"
+
+
+def signal_call(entry_id: str) -> str:
+    """Dispatcher signal for a call button press on the given entry."""
+    return f"{DOMAIN}_{entry_id}_call"

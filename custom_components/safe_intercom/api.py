@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from http import HTTPStatus
+from urllib.parse import parse_qs
 
 import aiohttp
 from yarl import URL
@@ -24,6 +25,10 @@ ALARM_SENSOR_IN = "SensorInAlarm"
 ALARM_SENSOR_OUT = "SensorOutAlarm"
 
 DEFAULT_RTSP_PORT = 554
+
+HTTP_EVENT_KEY = "event"
+HTTP_EVENT_CALL = "call"
+"""The HTTP event parameter to configure for the call button: `event=call`."""
 
 STREAM_MAIN = 0
 """Main stream profile, `av0_0`."""
@@ -141,6 +146,18 @@ def parse_alarm_event(line: str) -> AlarmEvent | None:
     except ValueError:
         return None
     return AlarmEvent(alarm_type, parts[3] == "1", areas, sensor)
+
+
+def parse_http_event(query: str, body: str) -> str | None:
+    """Return the `event` value of an HTTP event request, or None.
+
+    The device sends the configured parameter after `?` (web UI manual §8.13),
+    and possibly in the body for POST. The query string wins.
+    """
+    for source in (query, body):
+        if values := parse_qs(source, keep_blank_values=True).get(HTTP_EVENT_KEY):
+            return values[0]
+    return None
 
 
 def _is_open(value: str | None) -> bool:

@@ -92,6 +92,18 @@
         "name": "Alternative stream"
       }
     },
+    "event": {
+      "call_button": {
+        "name": "Call button",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "ring": "Ring"
+            }
+          }
+        }
+      }
+    },
     "switch": {
       "relay": {
         "name": "Relay {number}"

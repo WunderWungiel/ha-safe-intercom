@@ -30,13 +30,14 @@ from .api import (
 )
 from .const import DEFAULT_PORT
 from .coordinator import SafeIntercomCoordinator
+from .http_event import async_register_webhook, async_unregister_webhook
 
 _LOGGER = logging.getLogger(__name__)
 
-# TODO: Platform.EVENT, ...
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.CAMERA,
+    Platform.EVENT,
     Platform.SWITCH,
 ]
 
@@ -134,6 +135,7 @@ async def async_setup_entry(
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    async_register_webhook(hass, entry)
     return True
 
 
@@ -141,4 +143,6 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: SafeIntercomConfigEntry
 ) -> bool:
     """Unload a config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        async_unregister_webhook(hass, entry)
+    return unloaded

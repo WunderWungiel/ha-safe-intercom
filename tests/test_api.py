@@ -18,6 +18,7 @@ from custom_components.safe_intercom.api import (
     SafeIntercomConnectionError,
     SystemInfo,
     parse_alarm_event,
+    parse_http_event,
 )
 
 from .const import (
@@ -240,3 +241,21 @@ async def test_get_video_coding(
     assert result["Resolution2"] == "352*288"
     assert "Main stream options:" not in result
     assert "Main stream options" not in result
+
+
+@pytest.mark.parametrize(
+    ("query", "body", "expected"),
+    [
+        ("event=call", "", "call"),
+        ("", "event=call", "call"),
+        ("event=call", "event=other", "call"),
+        ("foo=bar&event=call", "", "call"),
+        ("foo=bar", "", None),
+        ("", "", None),
+        ("event", "", ""),
+        ("", "not a form \x00", None),
+    ],
+)
+def test_parse_http_event(query: str, body: str, expected: str | None) -> None:
+    """The `event` value comes from the query string, else the POST body."""
+    assert parse_http_event(query, body) == expected

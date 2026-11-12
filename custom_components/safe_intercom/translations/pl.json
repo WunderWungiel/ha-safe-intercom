@@ -92,6 +92,18 @@
         "name": "Strumień alternatywny"
       }
     },
+    "event": {
+      "call_button": {
+        "name": "Przycisk wywołania",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "ring": "Dzwonek"
+            }
+          }
+        }
+      }
+    },
     "switch": {
       "relay": {
         "name": "Przekaźnik {number}"
