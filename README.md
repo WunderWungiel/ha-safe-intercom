@@ -54,7 +54,7 @@ never changes device settings itself):
 2. In the intercom's web interface, open Network settings → **HTTP event**, enable it and enter
    the protocol, host name (`<Home Assistant IP>:<port>`) and request (`/api/webhook/…`)
    shown in Configure. Method **GET**, authentication off.
-3. In Recording → **Call button**, tick HTTP event and enter `event=call`.
+3. In Alarm settings → **Call button**, tick HTTP event and enter `event=call`.
 
 The webhook only accepts requests from your local network. Keep its path private: anyone on
 your network who knows it can trigger the event.
@@ -79,7 +79,7 @@ automation:
 These come from the intercom's event stream, as relay changes do:
 
 - **Motion**: on while any motion detection zone is active. Turn on motion detection in the
-  intercom's web interface (Recording → Motion detection), or it stays off.
+  intercom's web interface (Alarm settings → Motion detection), or it stays off.
 - **Alarm input 1–3**: disabled by default, because nothing tells the integration what is
   wired to them. Their state is unknown until the first change after Home Assistant connects.
 

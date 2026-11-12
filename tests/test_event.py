@@ -164,3 +164,24 @@ async def test_webhook_id_not_logged(
     ]
     assert ours
     assert not any(WEBHOOK_ID in message for message in ours)
+
+
+async def test_undecodable_body_logs_no_error(
+    hass: HomeAssistant,
+    hass_client_no_auth: ClientSessionGenerator,
+    entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A body that isn't UTF-8 is ignored without an error log naming the ID."""
+    client = await hass_client_no_auth()
+    resp = await client.post(
+        WEBHOOK_URL,
+        data=b"\xff\xfeevent=call",
+        headers={"Content-Type": "text/plain; charset=utf-8"},
+    )
+    await hass.async_block_till_done()
+
+    assert resp.status == 200
+    # HA core's own debug and access logs show webhook URLs; that's outside the
+    # integration. What must not happen is an error log with a traceback.
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]

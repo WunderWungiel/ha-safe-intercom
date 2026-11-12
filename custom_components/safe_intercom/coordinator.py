@@ -100,13 +100,15 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
     def _handle_alarm(self, event: AlarmEvent) -> None:
         """Apply a motion or input event and notify listeners of a change."""
         if event.alarm_type == ALARM_MOTION:
-            # A line without zones is taken as zone 0.
-            zones = set(event.areas) or {0}
             before = set(self._motion_zones)
             if event.active:
-                self._motion_zones |= zones
+                # A line without zones is taken as zone 0.
+                self._motion_zones |= set(event.areas) or {0}
+            elif event.areas:
+                self._motion_zones -= set(event.areas)
             else:
-                self._motion_zones -= zones
+                # An "off" naming no zones ends all motion.
+                self._motion_zones.clear()
             changed = before != self._motion_zones
         elif event.alarm_type == ALARM_SENSOR_IN and event.sensor is not None:
             number = event.sensor + 1

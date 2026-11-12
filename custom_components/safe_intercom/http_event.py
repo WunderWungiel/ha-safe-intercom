@@ -31,7 +31,13 @@ def async_register_webhook(hass: HomeAssistant, entry: SafeIntercomConfigEntry) 
     async def handle(
         hass: HomeAssistant, webhook_id: str, request: web.Request
     ) -> web.Response:
-        body = await request.text() if request.method == hdrs.METH_POST else ""
+        # Decoded leniently: an exception here would make HA log the webhook
+        # ID at error level.
+        body = (
+            (await request.read()).decode(errors="replace")
+            if request.method == hdrs.METH_POST
+            else ""
+        )
         event = parse_http_event(request.query_string, body)
         if event == HTTP_EVENT_CALL:
             _LOGGER.debug("Call button pressed on %s", entry.title)

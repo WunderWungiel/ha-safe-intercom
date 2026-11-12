@@ -149,3 +149,12 @@ async def test_sensor_out_still_refreshes(stream) -> None:
 
     await _send(client, _event("SensorOutAlarm;1;2"))
     assert client.controller_reads == reads + 1
+
+
+async def test_motion_off_without_zones_clears_all(stream) -> None:
+    """An `off` line naming no zones ends motion, whatever zones were on."""
+    coordinator, client, _ = stream
+    await _send(client, _event("MotionDetection;1;0,1"))
+    assert coordinator.motion is True
+    await _send(client, _event("MotionDetection;0"))
+    assert coordinator.motion is False
