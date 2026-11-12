@@ -20,7 +20,13 @@ from custom_components.safe_intercom.api import (
     parse_alarm_event,
 )
 
-from .const import HOST, SYSTEMINFO_RESPONSE, VIDEOCODING_RESPONSE, controller_response
+from .const import (
+    ALARM_URL,
+    HOST,
+    SYSTEMINFO_RESPONSE,
+    VIDEOCODING_RESPONSE,
+    controller_response,
+)
 
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
 ALARMOUT_URL = f"http://{HOST}/cgi-bin/alarmout_cgi"
@@ -110,11 +116,6 @@ async def test_set_relay_invalid_number(client: SafeIntercomClient) -> None:
         await client.async_set_relay(0, True)
 
 
-ALARM_URL = (
-    f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0&parameter=SensorOutAlarm"
-)
-
-
 def test_parse_alarm_event() -> None:
     """Event lines carry date, time, type, status and optional areas/sensor."""
     assert parse_alarm_event("2012-06-04;20:00:40;SensorOutAlarm;1;2") == AlarmEvent(
@@ -146,10 +147,6 @@ async def test_alarm_stream_yields_events(
 
     assert [e.active for e in events] == [True, False]
     assert all(e.alarm_type == "SensorOutAlarm" for e in events)
-    assert dict(aioclient_mock.mock_calls[0][1].query) == {
-        "channel": "0",
-        "parameter": "SensorOutAlarm",
-    }
 
 
 async def test_alarm_stream_connection_error(
@@ -163,10 +160,13 @@ async def test_alarm_stream_connection_error(
             pass
 
 
-async def test_alarm_stream_subscribes_to_outputs_and_signals_connect(
+async def test_alarm_stream_subscribes_all_types_and_signals_connect(
     aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient
 ) -> None:
-    """Only output alarms are requested; on_connect fires once the stream is up."""
+    """Motion, input and output alarms are requested; on_connect fires once up.
+
+    The `;` separators go out literally, as in the spec example, not as `%3B`.
+    """
     aioclient_mock.get(ALARM_URL, text="\n")
     connects = []
 
@@ -177,10 +177,27 @@ async def test_alarm_stream_subscribes_to_outputs_and_signals_connect(
 
     assert events == []
     assert connects == [1]
-    assert dict(aioclient_mock.mock_calls[0][1].query) == {
-        "channel": "0",
-        "parameter": "SensorOutAlarm",
-    }
+    assert aioclient_mock.mock_calls[0][1].raw_query_string == (
+        "channel=0&parameter=MotionDetection;SensorInAlarm;SensorOutAlarm"
+    )
+
+
+async def test_alarm_stream_yields_input_and_motion_events(
+    aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient
+) -> None:
+    """Input and motion lines come through as events too."""
+    aioclient_mock.get(
+        ALARM_URL,
+        text="2012-06-04;20:00:36;SensorInAlarm;1;2\n"
+        "2012-06-04;20:00:37;MotionDetection;1;0,1\n",
+    )
+
+    events = [event async for event in client.async_alarm_events()]
+
+    assert events == [
+        AlarmEvent("SensorInAlarm", True, (), 2),
+        AlarmEvent("MotionDetection", True, (0, 1), None),
+    ]
 
 
 async def test_alarm_stream_no_connect_signal_on_auth_error(

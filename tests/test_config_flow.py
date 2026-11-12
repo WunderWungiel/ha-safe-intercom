@@ -37,7 +37,7 @@ NETWORK_RESPONSE = (
     "Web Port=8080\r\n"
 )
 CONTROLLER_URL = "http://192.0.2.10:8080/cgi-bin/controller_cgi?action=get"
-ALARM_URL = "http://192.0.2.10:8080/cgi-bin/alarmchangestate_cgi?channel=0&parameter=SensorOutAlarm"
+ALARM_URL = "http://192.0.2.10:8080/cgi-bin/alarmchangestate_cgi?channel=0&parameter=MotionDetection;SensorInAlarm;SensorOutAlarm"
 
 
 def _mock_device(
@@ -297,7 +297,7 @@ NEW_RTSP_URL = f"http://{NEW_HOST}:8080/cgi-bin/rtsp_cgi?action=get"
 NEW_CONTROLLER_URL = f"http://{NEW_HOST}:8080/cgi-bin/controller_cgi?action=get"
 NEW_ALARM_URL = (
     f"http://{NEW_HOST}:8080/cgi-bin/alarmchangestate_cgi"
-    "?channel=0&parameter=SensorOutAlarm"
+    "?channel=0&parameter=MotionDetection;SensorInAlarm;SensorOutAlarm"
 )
 
 

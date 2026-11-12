@@ -5,6 +5,12 @@ import asyncio
 HOST = "192.0.2.10"
 MAC = "00:5d:20:a0:35:12"
 
+ALARM_PARAMETER = "MotionDetection;SensorInAlarm;SensorOutAlarm"
+"""Alarm types the integration subscribes to, `;`-separated as sent."""
+ALARM_URL = (
+    f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0&parameter={ALARM_PARAMETER}"
+)
+
 NETWORK_RESPONSE = (
     "BootProto=none\r\n"
     "IPAddress=192.0.2.10\r\n"

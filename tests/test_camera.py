@@ -46,9 +46,7 @@ from .const import (
 NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
 SYSTEMINFO_URL = f"http://{HOST}/cgi-bin/systeminfo_cgi"
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
-ALARM_URL = (
-    f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0&parameter=SensorOutAlarm"
-)
+ALARM_URL = f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0&parameter=MotionDetection;SensorInAlarm;SensorOutAlarm"
 RTSP_URL = f"http://{HOST}/cgi-bin/rtsp_cgi?action=get"
 SNAPSHOT_URL = f"http://{HOST}/cgi-bin/images_cgi?channel=0"
 

@@ -19,6 +19,8 @@ REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=10)
 # 5 s, so a read that stalls far longer than that means the connection is dead.
 STREAM_TIMEOUT = aiohttp.ClientTimeout(total=None, connect=10, sock_read=20)
 
+ALARM_MOTION = "MotionDetection"
+ALARM_SENSOR_IN = "SensorInAlarm"
 ALARM_SENSOR_OUT = "SensorOutAlarm"
 
 DEFAULT_RTSP_PORT = 554
@@ -288,15 +290,17 @@ class SafeIntercomClient:
     async def async_alarm_events(
         self, on_connect: Callable[[], None] | None = None
     ) -> AsyncIterator[AlarmEvent]:
-        """Yield output alarm changes from the device's push stream.
+        """Yield motion, input and output alarm changes from the push stream.
 
         `on_connect` is called once the device has accepted the stream, before
         any event. Returns when the device closes the connection; raises
         SafeIntercomConnectionError if it cannot be reached or goes silent.
         """
-        url = self._base_url.with_path("/cgi-bin/alarmchangestate_cgi").with_query(
-            {"channel": "0", "parameter": ALARM_SENSOR_OUT}
-        )
+        # Built pre-encoded: yarl would send the `;` separators as `%3B`, while
+        # the spec example (§20.1) sends them literally.
+        types = ";".join((ALARM_MOTION, ALARM_SENSOR_IN, ALARM_SENSOR_OUT))
+        path = self._base_url.with_path("/cgi-bin/alarmchangestate_cgi")
+        url = URL(f"{path}?channel=0&parameter={types}", encoded=True)
         try:
             async with self._session.get(
                 url, headers=self._headers, timeout=STREAM_TIMEOUT

@@ -50,9 +50,7 @@ SYSTEMINFO_URL = f"http://{HOST}/cgi-bin/systeminfo_cgi"
 RTSP_URL = f"http://{HOST}/cgi-bin/rtsp_cgi?action=get"
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
 ALARMOUT_URL = f"http://{HOST}/cgi-bin/alarmout_cgi"
-ALARM_URL = (
-    f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0&parameter=SensorOutAlarm"
-)
+ALARM_URL = f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0&parameter=MotionDetection;SensorInAlarm;SensorOutAlarm"
 
 RELAY_1 = "switch.intercom_relay_1"  # momentary, Delay1=2
 RELAY_2 = "switch.intercom_relay_2"
