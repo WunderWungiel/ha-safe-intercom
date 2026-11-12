@@ -5,7 +5,7 @@ Guidance for AI coding agents working in this repository.
 ## Project
 
 A Home Assistant custom integration (domain `safe_intercom`) for **SAFE IP intercoms** (bramofony
-IP SAFE, e.g. S03M / S06 / S06M, sold by SAFE Automation in Poland; OEM firmware for Hi3518A /
+IP SAFE, e.g. S03M / S06 / S06M / S06A, sold by SAFE Automation in Poland; OEM firmware for Hi3518A /
 Hi3521). Meant for distribution through HACS.
 
 Goal: one config entry per intercom, exposing:
@@ -102,12 +102,16 @@ The HTTP API has no call-button event in the alarm stream. The options are:
 - **State freshness.** The coordinator polls `controller_cgi` every 30 s as a safety net. It
   also refreshes after a command (re-reading `controller_cgi` until the relay matches the
   command, up to ~3 s, because the device can lag behind its own command) and whenever
-  `alarmchangestate_cgi` emits a `SensorOutAlarm` line. The stream is only a change *signal*;
-  state always comes from `controller_cgi`. **Unverified on a real device:** whether relay
-  changes (from the app, a button or the call trigger) actually emit `SensorOutAlarm` (spec
-  §20.1.2 suggests it covers the intercom's own alarm outputs, not the external controller),
-  and how long `StatusN` lags after `alarmout_cgi`. Without stream signals, outside changes
-  show up within 30 s.
+  `alarmchangestate_cgi` (subscribed with `parameter=SensorOutAlarm`) emits a line. The stream
+  is only a change *signal*; state always comes from `controller_cgi`.
+- **Verified (S06A, firmware 3.1.5.0.7.18.36):** switching a controller relay from the SAFE
+  Android app shows up in Home Assistant instantly (4 of 4 tries), so the stream does emit
+  `SensorOutAlarm` for the external 3n controller's relays, despite spec §20.1.2 describing it
+  as the intercom's own alarm outputs. Still unverified: changes caused by the call-button
+  trigger or a physical button, which `<sensorNo>` each relay maps to, and how long `StatusN`
+  lags after `alarmout_cgi`.
+- `systeminfo_cgi` works as in spec §35. Real values: `DeviceModel=S06A`,
+  `SoftwareVersion=3.1.5.0.7.18.36`, `HardwareVersion=Hi3518 IP Camera`.
 - Known install: relay 1 (`Output=0`) = wicket strike, relay 2 (`Output=1`) = gate
   pulse, relay 3 (`Output=2`) = gate lights (latching). Use this for manual testing only; never
   hard-code it.

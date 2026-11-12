@@ -1,11 +1,10 @@
 # SAFE Intercom for Home Assistant
 
-Custom integration for SAFE IP intercoms (S03M / S06 / S06M).
+Custom integration for SAFE IP intercoms (S03M / S06 / S06M / S06A).
 
-> **Status:** early development. Controller relays work. Their state is read from the device
-> every 30 s, after every command, and whenever the device's alarm stream reports an output
-> change (whether the stream reports relay changes is not yet confirmed on a real device).
-> Camera and call button are not implemented yet.
+> **Status:** early development. Controller relays work. Changes made elsewhere (for example
+> in the SAFE app) show up instantly through the device's event stream; the state is also
+> re-read every 30 s as a safety net. Camera and call button are not implemented yet.
 
 ## Installation (HACS)
 
