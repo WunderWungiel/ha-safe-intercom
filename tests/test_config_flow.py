@@ -1,8 +1,16 @@
 """Tests for the SAFE Intercom config flow."""
 
+from unittest.mock import ANY
+
 import aiohttp
 from homeassistant import config_entries
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+    CONF_WEBHOOK_ID,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 import pytest
@@ -90,7 +98,9 @@ async def test_user_flow_creates_entry(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Intercom"
-    assert result["data"] == USER_INPUT
+    assert result["data"] == {**USER_INPUT, CONF_WEBHOOK_ID: ANY}
+    assert result["data"][CONF_WEBHOOK_ID]
+    assert result["result"].minor_version == 2
     assert result["options"] == {CONF_ENABLED_RELAYS: [1, 3]}
     assert result["result"].unique_id == "00:5d:20:a0:35:12"
 

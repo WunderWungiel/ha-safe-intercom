@@ -4,6 +4,7 @@
   "categories": ["security_safety.doorbells_intercoms", "security_safety.cameras"],
   "codeowners": ["@wunderwungiel"],
   "config_flow": true,
+  "dependencies": ["webhook"],
   "documentation": "https://github.com/wunderwungiel/ha-safe-intercom",
   "integration_type": "device",
   "iot_class": "local_push",

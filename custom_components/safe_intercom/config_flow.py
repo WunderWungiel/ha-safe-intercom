@@ -6,13 +6,20 @@ from collections.abc import Mapping
 import logging
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.components import webhook
 from homeassistant.config_entries import (
     ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlowWithReload,
 )
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+    CONF_WEBHOOK_ID,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -123,6 +130,7 @@ class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for SAFE Intercom."""
 
     VERSION = 1
+    MINOR_VERSION = 2
 
     def __init__(self) -> None:
         """Initialize the flow."""
@@ -279,7 +287,7 @@ class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
     def _create_entry(self, enabled: list[int]) -> ConfigFlowResult:
         return self.async_create_entry(
             title=self._title,
-            data=self._data,
+            data={**self._data, CONF_WEBHOOK_ID: webhook.async_generate_id()},
             options={CONF_ENABLED_RELAYS: enabled},
         )
 

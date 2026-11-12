@@ -2,7 +2,13 @@
 
 from unittest.mock import ANY
 
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+    CONF_WEBHOOK_ID,
+)
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.components.diagnostics import (
@@ -73,7 +79,7 @@ async def test_diagnostics_redacts_credentials(
     """Diagnostics show device state but never credentials or addresses."""
     result = await _diagnostics(hass, hass_client, aioclient_mock)
 
-    for key in (CONF_PASSWORD, CONF_USERNAME, CONF_HOST):
+    for key in (CONF_PASSWORD, CONF_USERNAME, CONF_HOST, CONF_WEBHOOK_ID):
         assert result["entry"]["data"][key] == "**REDACTED**"
     assert result["entry"]["unique_id"] == "**REDACTED**"
     assert "secret" not in str(result)

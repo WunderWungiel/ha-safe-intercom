@@ -5,12 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 
+from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_USERNAME,
+    CONF_WEBHOOK_ID,
     Platform,
 )
 from homeassistant.core import HomeAssistant
@@ -54,6 +56,22 @@ class SafeIntercomData:
 
 
 type SafeIntercomConfigEntry = ConfigEntry[SafeIntercomData]
+
+
+async def async_migrate_entry(
+    hass: HomeAssistant, entry: SafeIntercomConfigEntry
+) -> bool:
+    """Migrate an entry to the current version."""
+    if entry.version > 1:
+        return False
+    if entry.minor_version < 2:
+        # 1.2: webhook for the call button's HTTP event.
+        hass.config_entries.async_update_entry(
+            entry,
+            data={**entry.data, CONF_WEBHOOK_ID: webhook.async_generate_id()},
+            minor_version=2,
+        )
+    return True
 
 
 async def async_setup_entry(

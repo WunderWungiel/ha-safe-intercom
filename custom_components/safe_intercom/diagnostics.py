@@ -6,13 +6,25 @@ from dataclasses import asdict
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    CONF_WEBHOOK_ID,
+)
 from homeassistant.core import HomeAssistant
 
 from . import SafeIntercomConfigEntry
 from .api import SafeIntercomError
 
-TO_REDACT = {CONF_HOST, CONF_PASSWORD, CONF_USERNAME, "unique_id", "title"}
+TO_REDACT = {
+    CONF_HOST,
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    CONF_WEBHOOK_ID,
+    "unique_id",
+    "title",
+}
 
 
 async def async_get_config_entry_diagnostics(

@@ -2,7 +2,13 @@
 
 import aiohttp
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+    CONF_WEBHOOK_ID,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 import pytest
@@ -182,3 +188,62 @@ async def test_setup_without_system_info(
     )
     assert device is not None
     assert device.model is None
+
+
+def _mock_device(aioclient_mock: AiohttpClientMocker) -> None:
+    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response())
+    aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
+
+
+async def test_migrate_adds_webhook_id(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """Entries from before the call button get a webhook ID on setup."""
+    assert (entry.version, entry.minor_version) == (1, 1)
+    before = dict(entry.data)
+    _mock_device(aioclient_mock)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.minor_version == 2
+    webhook_id = entry.data[CONF_WEBHOOK_ID]
+    assert isinstance(webhook_id, str)
+    assert len(webhook_id) >= 32
+    assert {k: v for k, v in entry.data.items() if k != CONF_WEBHOOK_ID} == before
+
+
+async def test_migrate_keeps_existing_webhook_id(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A current entry's webhook ID is left alone."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Intercom",
+        unique_id=MAC,
+        minor_version=2,
+        data={
+            CONF_HOST: HOST,
+            CONF_PORT: 80,
+            CONF_USERNAME: "admin",
+            CONF_PASSWORD: "secret",
+            CONF_WEBHOOK_ID: "existing",
+        },
+    )
+    entry.add_to_hass(hass)
+    _mock_device(aioclient_mock)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.data[CONF_WEBHOOK_ID] == "existing"
+
+
+async def test_migrate_refuses_future_version(hass: HomeAssistant) -> None:
+    """An entry from a newer integration version is not downgraded."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=MAC, version=2, data={})
+    entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.MIGRATION_ERROR
