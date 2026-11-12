@@ -254,6 +254,8 @@ async def test_get_video_coding(
         ("", "", None),
         ("event", "", ""),
         ("", "not a form \x00", None),
+        ("", "event=call\r\n", "call"),
+        ("event=%20call%20", "", "call"),
     ],
 )
 def test_parse_http_event(query: str, body: str, expected: str | None) -> None:

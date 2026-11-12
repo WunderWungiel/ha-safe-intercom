@@ -158,3 +158,23 @@ async def test_motion_off_without_zones_clears_all(stream) -> None:
     assert coordinator.motion is True
     await _send(client, _event("MotionDetection;0"))
     assert coordinator.motion is False
+
+
+async def test_motion_without_zones_cleared_by_zoned_off(stream) -> None:
+    """Motion reported without zones ends with any `off`, even one naming zones."""
+    coordinator, client, _ = stream
+    await _send(client, _event("MotionDetection;1"))
+    assert coordinator.motion is True
+    await _send(client, _event("MotionDetection;0;1"))
+    assert coordinator.motion is False
+
+
+async def test_motion_zoned_on_survives_unrelated_off(stream) -> None:
+    """A zoned `off` only clears its own zones, with or without unzoned motion."""
+    coordinator, client, _ = stream
+    await _send(client, _event("MotionDetection;1;0"))
+    await _send(client, _event("MotionDetection;1"))
+    await _send(client, _event("MotionDetection;0;1"))
+    assert coordinator.motion is True
+    await _send(client, _event("MotionDetection;0;0"))
+    assert coordinator.motion is False

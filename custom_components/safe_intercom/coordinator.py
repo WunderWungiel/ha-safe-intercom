@@ -81,6 +81,9 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
         self._stream_connected = False
         self._stream_lost = False
         self._motion_zones: set[int] = set()
+        # Motion reported without zones. Kept apart from the zone set: an
+        # `off` may name zones, and would never clear a stand-in zone.
+        self._motion_unzoned = False
         self._inputs: dict[int, bool] = {}
 
     @property
@@ -91,7 +94,7 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
     @property
     def motion(self) -> bool:
         """Whether any motion detection zone is active."""
-        return bool(self._motion_zones)
+        return bool(self._motion_zones) or self._motion_unzoned
 
     def input_state(self, number: int) -> bool | None:
         """State of the 1-based alarm input; None until its first event."""
@@ -100,16 +103,20 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
     def _handle_alarm(self, event: AlarmEvent) -> None:
         """Apply a motion or input event and notify listeners of a change."""
         if event.alarm_type == ALARM_MOTION:
-            before = set(self._motion_zones)
+            before = self.motion
             if event.active:
-                # A line without zones is taken as zone 0.
-                self._motion_zones |= set(event.areas) or {0}
-            elif event.areas:
-                self._motion_zones -= set(event.areas)
+                if event.areas:
+                    self._motion_zones |= set(event.areas)
+                else:
+                    self._motion_unzoned = True
             else:
-                # An "off" naming no zones ends all motion.
-                self._motion_zones.clear()
-            changed = before != self._motion_zones
+                # Any "off" ends unzoned motion; one naming no zones ends all.
+                self._motion_unzoned = False
+                if event.areas:
+                    self._motion_zones -= set(event.areas)
+                else:
+                    self._motion_zones.clear()
+            changed = before != self.motion
         elif event.alarm_type == ALARM_SENSOR_IN and event.sensor is not None:
             number = event.sensor + 1
             changed = self._inputs.get(number) != event.active
@@ -124,6 +131,7 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
         self._stream_connected = connected
         if not connected:
             self._motion_zones.clear()
+            self._motion_unzoned = False
             self._inputs.clear()
         self.async_update_listeners()
 

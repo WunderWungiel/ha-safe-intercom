@@ -152,11 +152,12 @@ def parse_http_event(query: str, body: str) -> str | None:
     """Return the `event` value of an HTTP event request, or None.
 
     The device sends the configured parameter after `?` (web UI manual §8.13),
-    and possibly in the body for POST. The query string wins.
+    and possibly in the body for POST. The query string wins. Surrounding
+    whitespace is dropped, e.g. a POST body ending in a line break.
     """
     for source in (query, body):
         if values := parse_qs(source, keep_blank_values=True).get(HTTP_EVENT_KEY):
-            return values[0]
+            return values[0].strip()
     return None
 
 
