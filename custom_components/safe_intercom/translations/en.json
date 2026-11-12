@@ -93,6 +93,9 @@
   "exceptions": {
     "relay_command_failed": {
       "message": "Failed to switch relay {number} on the intercom."
+    },
+    "snapshot_failed": {
+      "message": "Failed to get a snapshot from the intercom."
     }
   }
 }

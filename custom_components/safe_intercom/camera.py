@@ -13,10 +13,12 @@ from typing import override
 
 from homeassistant.components.camera import Camera, CameraEntityFeature
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import SafeIntercomConfigEntry
-from .api import STREAM_MAIN, STREAM_SUB, SafeIntercomError
+from .api import STREAM_MAIN, STREAM_SUB, SafeIntercomAuthError, SafeIntercomError
+from .const import DOMAIN
 from .coordinator import SafeIntercomCoordinator
 from .entity import SafeIntercomEntity
 
@@ -80,9 +82,12 @@ class SafeIntercomCamera(SafeIntercomEntity, Camera):
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
         """Return a JPEG snapshot; the device has no size options."""
-        client = self.coordinator.config_entry.runtime_data.client
+        entry = self.coordinator.config_entry
         try:
-            return await client.async_get_snapshot()
+            return await entry.runtime_data.client.async_get_snapshot()
         except SafeIntercomError as err:
-            _LOGGER.debug("Snapshot from %s failed: %s", client.host, err)
-            return None
+            if isinstance(err, SafeIntercomAuthError):
+                entry.async_start_reauth(self.hass)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="snapshot_failed"
+            ) from err

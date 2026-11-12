@@ -219,8 +219,10 @@ class SafeIntercomClient:
         """The device's web interface, e.g. `http://192.0.2.10:80`."""
         return f"{self._base_url.scheme}://{self._base_url.host}:{self._base_url.port}"
 
-    async def _get_text(self, path: str, params: dict[str, str] | None = None) -> str:
-        """Perform an authenticated GET and return the response body."""
+    async def _get_bytes(
+        self, path: str, params: dict[str, str] | None = None
+    ) -> bytes:
+        """Perform an authenticated GET and return the raw response body."""
         url = self._base_url.with_path(path).with_query(params or {})
         try:
             async with self._session.get(
@@ -232,11 +234,15 @@ class SafeIntercomClient:
                     raise SafeIntercomConnectionError(
                         f"Unexpected HTTP status {resp.status} from {path}"
                     )
-                return await resp.text(errors="replace")
+                return await resp.read()
         except (aiohttp.ClientError, TimeoutError) as err:
             raise SafeIntercomConnectionError(
                 f"Error communicating with {self._base_url.host}: {err!r}"
             ) from err
+
+    async def _get_text(self, path: str, params: dict[str, str] | None = None) -> str:
+        """Perform an authenticated GET and return the response body as text."""
+        return (await self._get_bytes(path, params)).decode(errors="replace")
 
     async def async_get_network_info(self) -> NetworkInfo:
         """Fetch network parameters; also serves as a credentials check."""
@@ -351,24 +357,7 @@ class SafeIntercomClient:
 
     async def async_get_snapshot(self) -> bytes:
         """Fetch a JPEG snapshot of the camera."""
-        url = self._base_url.with_path("/cgi-bin/images_cgi").with_query(
-            {"channel": "0"}
-        )
-        try:
-            async with self._session.get(
-                url, headers=self._headers, timeout=REQUEST_TIMEOUT
-            ) as resp:
-                if resp.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
-                    raise SafeIntercomAuthError
-                if resp.status != HTTPStatus.OK:
-                    raise SafeIntercomConnectionError(
-                        f"Unexpected HTTP status {resp.status} from images_cgi"
-                    )
-                body = await resp.read()
-        except (aiohttp.ClientError, TimeoutError) as err:
-            raise SafeIntercomConnectionError(
-                f"Error communicating with {self._base_url.host}: {err!r}"
-            ) from err
+        body = await self._get_bytes("/cgi-bin/images_cgi", {"channel": "0"})
         # Errors come back as HTTP 200 with a `Request failed:...` text body.
         if not body.startswith(b"\xff\xd8"):
             raise SafeIntercomCommandError(

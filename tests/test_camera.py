@@ -296,11 +296,25 @@ async def test_camera_image(
 async def test_camera_image_failed(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """A refused snapshot surfaces as HomeAssistantError."""
+    """A refused snapshot surfaces as a translated HomeAssistantError."""
     await _setup(
         hass,
         aioclient_mock,
         snapshot_kwargs={"text": "Request failed:Param error\r\n"},
     )
+    with pytest.raises(HomeAssistantError) as err:
+        await async_get_image(hass, MAIN)
+    assert err.value.translation_key == "snapshot_failed"
+
+
+async def test_camera_image_auth_error_starts_reauth(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A snapshot refused for bad credentials starts reauth."""
+    await _setup(hass, aioclient_mock, snapshot_kwargs={"status": 401})
     with pytest.raises(HomeAssistantError):
         await async_get_image(hass, MAIN)
+    assert any(
+        flow["context"]["source"] == "reauth"
+        for flow in hass.config_entries.flow.async_progress()
+    )

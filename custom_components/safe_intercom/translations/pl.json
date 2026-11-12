@@ -93,6 +93,9 @@
   "exceptions": {
     "relay_command_failed": {
       "message": "Nie udało się przełączyć przekaźnika {number} w bramofonie."
+    },
+    "snapshot_failed": {
+      "message": "Nie udało się pobrać zdjęcia z bramofonu."
     }
   }
 }
