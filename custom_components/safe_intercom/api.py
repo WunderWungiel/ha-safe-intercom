@@ -6,7 +6,7 @@ standalone library. See AGENTS.md for the endpoints and verified device behaviou
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from http import HTTPStatus
 
@@ -182,6 +182,11 @@ class SafeIntercomClient:
         self._base_url = URL.build(scheme="http", host=host, port=port)
         self._headers = {"Authorization": aiohttp.encode_basic_auth(username, password)}
 
+    @property
+    def host(self) -> str:
+        """The device's host name or address."""
+        return self._base_url.host or ""
+
     async def _get_text(self, path: str, params: dict[str, str]) -> str:
         """Perform an authenticated GET and return the response body."""
         url = self._base_url.with_path(path).with_query(params)
@@ -233,14 +238,17 @@ class SafeIntercomClient:
         if "Request failed" in text:
             raise SafeIntercomCommandError(text.strip())
 
-    async def async_alarm_events(self) -> AsyncIterator[AlarmEvent]:
-        """Yield alarm changes from the device's push stream.
+    async def async_alarm_events(
+        self, on_connect: Callable[[], None] | None = None
+    ) -> AsyncIterator[AlarmEvent]:
+        """Yield output alarm changes from the device's push stream.
 
-        Returns when the device closes the connection; raises
+        `on_connect` is called once the device has accepted the stream, before
+        any event. Returns when the device closes the connection; raises
         SafeIntercomConnectionError if it cannot be reached or goes silent.
         """
         url = self._base_url.with_path("/cgi-bin/alarmchangestate_cgi").with_query(
-            {"channel": "0"}
+            {"channel": "0", "parameter": ALARM_SENSOR_OUT}
         )
         try:
             async with self._session.get(
@@ -252,6 +260,8 @@ class SafeIntercomClient:
                     raise SafeIntercomConnectionError(
                         f"Unexpected HTTP status {resp.status} from alarm stream"
                     )
+                if on_connect is not None:
+                    on_connect()
                 async for raw in resp.content:
                     if event := parse_alarm_event(raw.decode(errors="replace")):
                         yield event

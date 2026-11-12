@@ -64,6 +64,8 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
             always_update=False,
         )
         self.client = client
+        self._stream_connected = False
+        self._stream_lost = False
 
     async def _async_update_data(self) -> ControllerInfo:
         """Fetch the controller state."""
@@ -97,19 +99,34 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
         """
         backoff = STREAM_BACKOFF_MIN
         first = True
+
+        def on_connect() -> None:
+            nonlocal backoff
+            backoff = STREAM_BACKOFF_MIN
+            if self._stream_lost:
+                _LOGGER.info("Alarm stream from %s connected", self.client.host)
+            self._stream_connected = True
+
         while True:
             try:
                 if not first:
                     # Events may have been missed while disconnected.
                     await self.async_refresh()
                 first = False
-                async for event in self.client.async_alarm_events():
-                    backoff = STREAM_BACKOFF_MIN
+                async for event in self.client.async_alarm_events(on_connect):
                     if event.alarm_type == ALARM_SENSOR_OUT:
                         await self.async_refresh()
+                reason = "closed by the device"
             except SafeIntercomAuthError:
                 _LOGGER.warning("Alarm stream rejected the credentials")
+                reason = "credentials rejected"
             except SafeIntercomError as err:
-                _LOGGER.debug("Alarm stream interrupted: %s", err)
+                reason = str(err)
+            if self._stream_connected:
+                _LOGGER.info("Alarm stream lost: %s", reason)
+                self._stream_connected = False
+                self._stream_lost = True
+            else:
+                _LOGGER.debug("Alarm stream unavailable: %s", reason)
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, STREAM_BACKOFF_MAX)

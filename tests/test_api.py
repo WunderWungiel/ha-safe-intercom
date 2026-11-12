@@ -12,6 +12,7 @@ from custom_components.safe_intercom.api import (
     AlarmEvent,
     ControllerInfo,
     RelayInfo,
+    SafeIntercomAuthError,
     SafeIntercomClient,
     SafeIntercomCommandError,
     SafeIntercomConnectionError,
@@ -108,7 +109,9 @@ async def test_set_relay_invalid_number(client: SafeIntercomClient) -> None:
         await client.async_set_relay(0, True)
 
 
-ALARM_URL = f"http://{HOST}/cgi-bin/alarmchangestate_cgi"
+ALARM_URL = (
+    f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0&parameter=SensorOutAlarm"
+)
 
 
 def test_parse_alarm_event() -> None:
@@ -142,7 +145,10 @@ async def test_alarm_stream_yields_events(
 
     assert [e.active for e in events] == [True, False]
     assert all(e.alarm_type == "SensorOutAlarm" for e in events)
-    assert dict(aioclient_mock.mock_calls[0][1].query) == {"channel": "0"}
+    assert dict(aioclient_mock.mock_calls[0][1].query) == {
+        "channel": "0",
+        "parameter": "SensorOutAlarm",
+    }
 
 
 async def test_alarm_stream_connection_error(
@@ -154,3 +160,36 @@ async def test_alarm_stream_connection_error(
     with pytest.raises(SafeIntercomConnectionError):
         async for _ in client.async_alarm_events():
             pass
+
+
+async def test_alarm_stream_subscribes_to_outputs_and_signals_connect(
+    aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient
+) -> None:
+    """Only output alarms are requested; on_connect fires once the stream is up."""
+    aioclient_mock.get(ALARM_URL, text="\n")
+    connects = []
+
+    events = [
+        e
+        async for e in client.async_alarm_events(on_connect=lambda: connects.append(1))
+    ]
+
+    assert events == []
+    assert connects == [1]
+    assert dict(aioclient_mock.mock_calls[0][1].query) == {
+        "channel": "0",
+        "parameter": "SensorOutAlarm",
+    }
+
+
+async def test_alarm_stream_no_connect_signal_on_auth_error(
+    aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient
+) -> None:
+    """A rejected stream raises an auth error and never signals a connection."""
+    aioclient_mock.get(ALARM_URL, status=401)
+    connects = []
+
+    with pytest.raises(SafeIntercomAuthError):
+        async for _ in client.async_alarm_events(on_connect=lambda: connects.append(1)):
+            pass
+    assert connects == []

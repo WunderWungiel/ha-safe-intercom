@@ -16,7 +16,9 @@ from .const import HOST, MAC, NETWORK_RESPONSE, controller_response, hanging_str
 
 NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
-ALARM_URL = f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0"
+ALARM_URL = (
+    f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0&parameter=SensorOutAlarm"
+)
 
 
 @pytest.fixture
