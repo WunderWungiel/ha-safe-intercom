@@ -40,7 +40,8 @@
         },
         "data_description": {
           "host": "[%key:component::safe_intercom::config::step::user::data_description::host%]",
-          "port": "[%key:component::safe_intercom::config::step::user::data_description::port%]"
+          "port": "[%key:component::safe_intercom::config::step::user::data_description::port%]",
+          "password": "Leave empty to keep the current password."
         }
       }
     },

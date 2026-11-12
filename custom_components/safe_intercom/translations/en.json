@@ -40,7 +40,8 @@
         },
         "data_description": {
           "host": "IP address of the intercom.",
-          "port": "HTTP port of the intercom's web interface."
+          "port": "HTTP port of the intercom's web interface.",
+          "password": "Leave empty to keep the current password."
         }
       }
     },

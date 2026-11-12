@@ -40,7 +40,8 @@
         },
         "data_description": {
           "host": "Adres IP bramofonu.",
-          "port": "Port HTTP interfejsu WWW bramofonu."
+          "port": "Port HTTP interfejsu WWW bramofonu.",
+          "password": "Pozostaw puste, aby zachować obecne hasło."
         }
       }
     },

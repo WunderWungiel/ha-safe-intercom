@@ -51,6 +51,17 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     }
 )
 
+# Like the user step, but the password may be left empty to keep the stored one,
+# so it never has to be sent back to the browser as a suggested value.
+STEP_RECONFIGURE_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HOST): str,
+        vol.Required(CONF_PORT, default=DEFAULT_PORT): cv.port,
+        vol.Required(CONF_USERNAME, default=DEFAULT_USERNAME): str,
+        vol.Optional(CONF_PASSWORD): str,
+    }
+)
+
 
 async def async_validate_input(
     hass: HomeAssistant, data: Mapping[str, Any]
@@ -238,21 +249,29 @@ class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
+            data = {
+                **user_input,
+                CONF_PASSWORD: user_input.get(CONF_PASSWORD)
+                or entry.data[CONF_PASSWORD],
+            }
             try:
-                info, _ = await async_validate_input(self.hass, user_input)
+                info, _ = await async_validate_input(self.hass, data)
             except Exception as err:
                 errors["base"] = _error_key(err)
             else:
                 await self.async_set_unique_id(format_mac(info.mac_address))
                 self._abort_if_unique_id_mismatch(reason="wrong_device")
-                return self.async_update_reload_and_abort(
-                    entry, data_updates=user_input
-                )
+                return self.async_update_reload_and_abort(entry, data_updates=data)
 
+        suggested = {
+            key: value
+            for key, value in (user_input or entry.data).items()
+            if key != CONF_PASSWORD
+        }
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=self.add_suggested_values_to_schema(
-                STEP_USER_DATA_SCHEMA, user_input or entry.data
+                STEP_RECONFIGURE_DATA_SCHEMA, suggested
             ),
             errors=errors,
         )

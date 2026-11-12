@@ -301,7 +301,8 @@ async def _start_reconfigure(hass: HomeAssistant, entry: MockConfigEntry) -> str
         for key in result["data_schema"].schema
         if key.description
     }
-    assert suggested == USER_INPUT
+    # The stored password is never sent back to the form.
+    assert suggested == {k: v for k, v in USER_INPUT.items() if k != CONF_PASSWORD}
     return result["flow_id"]
 
 
@@ -323,6 +324,37 @@ async def test_reconfigure_changes_host(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.data[CONF_HOST] == NEW_HOST
+
+
+@pytest.mark.parametrize(
+    ("submitted", "stored"),
+    [({}, "secret"), ({CONF_PASSWORD: ""}, "secret"), ({CONF_PASSWORD: "new"}, "new")],
+)
+async def test_reconfigure_password(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+    submitted: dict[str, str],
+    stored: str,
+) -> None:
+    """An empty password keeps the stored one; a new one replaces it."""
+    aioclient_mock.get(NEW_NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(NEW_SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(NEW_CONTROLLER_URL, text=controller_response())
+    aioclient_mock.get(NEW_ALARM_URL, side_effect=hanging_stream)
+    flow_id = await _start_reconfigure(hass, entry)
+    user_input = {k: v for k, v in USER_INPUT.items() if k != CONF_PASSWORD}
+
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {**user_input, CONF_HOST: NEW_HOST, **submitted}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_PASSWORD] == stored
+    auth = aioclient_mock.mock_calls[0][3]["Authorization"]
+    assert auth == aiohttp.encode_basic_auth("admin", stored)
 
 
 async def test_reconfigure_wrong_device(
