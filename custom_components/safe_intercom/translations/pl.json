@@ -76,6 +76,14 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "motion": {
+        "name": "Ruch"
+      },
+      "alarm_input": {
+        "name": "Wejście alarmowe {number}"
+      }
+    },
     "camera": {
       "main_stream": {
         "name": "Strumień główny"

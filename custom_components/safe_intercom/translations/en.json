@@ -76,6 +76,14 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "motion": {
+        "name": "Motion"
+      },
+      "alarm_input": {
+        "name": "Alarm input {number}"
+      }
+    },
     "camera": {
       "main_stream": {
         "name": "Main stream"

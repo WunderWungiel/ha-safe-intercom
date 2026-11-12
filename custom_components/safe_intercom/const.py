@@ -18,6 +18,9 @@ RELAY_KEY_PREFIX: Final = "relay_"
 SUPPORTED_RELAYS: Final = (1, 2, 3)
 """Relays of the 3n controller (the only controller type supported so far)."""
 
+SUPPORTED_INPUTS: Final = (1, 2, 3)
+"""Alarm inputs, 1-based; three per Modbus registers 106-108 (unverified)."""
+
 
 def enabled_relays(options: Mapping[str, Any]) -> list[int]:
     """Return the enabled relays; entries without the option expose all of them."""
