@@ -4,8 +4,8 @@ Custom integration for SAFE IP intercoms (S03M / S06 / S06M / S06A).
 
 > **Status:** early development. Controller relays work. Changes made elsewhere (for example
 > in the SAFE app) show up instantly through the device's event stream; the state is also
-> re-read every 30 s as a safety net. The camera works (main and alternative streams); the
-> call button is not implemented yet.
+> re-read every 30 s as a safety net. The camera works (main and alternative streams). The
+> call button, motion and alarm inputs are new and not yet verified on a real device.
 
 ## Installation (HACS)
 
@@ -20,6 +20,7 @@ Custom integration for SAFE IP intercoms (S03M / S06 / S06M / S06A).
    type and each relay's delay as set in the intercom's web interface.
 
 You can change the relay selection later with **Configure** on the integration's card.
+Configure also shows the settings for the call button (see below).
 Only the 3-relay controller (`3n`) is supported so far.
 
 - **Reauthentication:** if the intercom's password changes, Home Assistant asks for the new
@@ -41,6 +42,49 @@ intercom's web interface (Network settings → RTSP); with RTSP off the cameras 
 only. The RTSP settings (on/off, port, authentication) are read when the integration loads, so
 reload it after changing them. The stream must be H.264: Home Assistant cannot play MJPEG
 streams.
+
+### Call button
+
+**Call button** is a doorbell `event` entity that fires `ring` when someone presses the
+intercom's call button. The intercom reports presses with an *HTTP event* sent to a Home
+Assistant webhook, which you set up once in the intercom's web interface (the integration
+never changes device settings itself):
+
+1. Open **Configure** on the integration's card. The description lists the exact values.
+2. In the intercom's web interface, open Network settings → **HTTP event**, enable it and enter
+   the protocol, host name (`<Home Assistant IP>:<port>`) and request (`/api/webhook/…`)
+   shown in Configure. Method **GET**, authentication off.
+3. In Recording → **Call button**, tick HTTP event and enter `event=call`.
+
+The webhook only accepts requests from your local network. Keep its path private: anyone on
+your network who knows it can trigger the event.
+
+```yaml
+automation:
+  - alias: Doorbell
+    triggers:
+      - trigger: state
+        entity_id: event.intercom_call_button
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.to_state.attributes.event_type == 'ring' }}"
+    actions:
+      - action: notify.notify
+        data:
+          message: Someone is at the gate
+```
+
+### Motion and alarm inputs
+
+These come from the intercom's event stream, as relay changes do:
+
+- **Motion**: on while any motion detection zone is active. Turn on motion detection in the
+  intercom's web interface (Recording → Motion detection), or it stays off.
+- **Alarm input 1–3**: disabled by default, because nothing tells the integration what is
+  wired to them. Their state is unknown until the first change after Home Assistant connects.
+
+Both are unavailable while the event stream is disconnected, since changes during that time
+can't be known.
 
 ### Relays
 
