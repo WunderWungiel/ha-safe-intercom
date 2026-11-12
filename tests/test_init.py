@@ -10,7 +10,11 @@ from homeassistant.const import (
     CONF_WEBHOOK_ID,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import (
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import (
@@ -22,11 +26,13 @@ from custom_components.safe_intercom.const import DOMAIN
 from .const import (
     HOST,
     MAC,
+    MOTION_URL,
     NETWORK_RESPONSE,
     RTSP_RESPONSE,
     SYSTEMINFO_RESPONSE,
     controller_response,
     hanging_stream,
+    motion_response,
 )
 
 NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
@@ -60,6 +66,7 @@ async def test_setup_and_unload(
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
 
@@ -118,6 +125,7 @@ async def test_setup_controller_failures(
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     aioclient_mock.get(CONTROLLER_URL, **mock_kwargs)
 
     await hass.config_entries.async_setup(entry.entry_id)
@@ -152,6 +160,7 @@ async def test_device_info(
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -177,6 +186,7 @@ async def test_setup_without_system_info(
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, status=404)
     aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -194,6 +204,7 @@ def _mock_device(aioclient_mock: AiohttpClientMocker) -> None:
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
 
@@ -247,3 +258,117 @@ async def test_migrate_refuses_future_version(hass: HomeAssistant) -> None:
     entry.add_to_hass(hass)
     assert not await hass.config_entries.async_setup(entry.entry_id)
     assert entry.state is ConfigEntryState.MIGRATION_ERROR
+
+
+def _mock_device_motion(aioclient_mock: AiohttpClientMocker, **motion) -> None:
+    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, **motion)
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response())
+    aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
+
+
+def _motion_issue(hass: HomeAssistant, entry: MockConfigEntry) -> ir.IssueEntry | None:
+    return ir.async_get(hass).async_get_issue(
+        DOMAIN, f"motion_detection_off_{entry.entry_id}"
+    )
+
+
+async def test_motion_detection_off_raises_issue(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """Motion detection turned off on the device is reported as a repair issue."""
+    _mock_device_motion(aioclient_mock, text=motion_response("close"))
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.motion is not None
+    assert entry.runtime_data.motion.enabled is False
+    issue = _motion_issue(hass, entry)
+    assert issue is not None
+    assert issue.translation_key == "motion_detection_off"
+    assert issue.severity is ir.IssueSeverity.WARNING
+    assert issue.is_fixable is False
+
+    await hass.config_entries.async_remove(entry.entry_id)
+    assert _motion_issue(hass, entry) is None
+
+
+async def test_motion_detection_on_clears_issue(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """Once detection is back on, the next setup removes the issue."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"motion_detection_off_{entry.entry_id}",
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="motion_detection_off",
+    )
+    _mock_device_motion(aioclient_mock, text=motion_response("open"))
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert _motion_issue(hass, entry) is None
+
+
+async def test_motion_settings_unreadable(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
+) -> None:
+    """motion_cgi needs admin rights; without them setup goes on, no issue."""
+    _mock_device_motion(aioclient_mock, status=401)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.motion is None
+    assert _motion_issue(hass, entry) is None
+
+
+async def test_motion_issue_skipped_when_sensor_disabled(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """A user who disabled the motion sensor does not want to hear about it."""
+    entity_registry.async_get_or_create(
+        "binary_sensor",
+        DOMAIN,
+        f"{MAC}_motion",
+        config_entry=entry,
+        disabled_by=er.RegistryEntryDisabler.USER,
+    )
+    _mock_device_motion(aioclient_mock, text=motion_response("close"))
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert _motion_issue(hass, entry) is None
+
+
+async def test_motion_issue_cleared_when_sensor_disabled(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """Disabling the sensor does not reload the entry, but still drops the issue."""
+    _mock_device_motion(aioclient_mock, text=motion_response("close"))
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert _motion_issue(hass, entry) is not None
+
+    entity_id = entity_registry.async_get_entity_id(
+        "binary_sensor", DOMAIN, f"{MAC}_motion"
+    )
+    assert entity_id is not None
+    entity_registry.async_update_entity(
+        entity_id, disabled_by=er.RegistryEntryDisabler.USER
+    )
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert _motion_issue(hass, entry) is None

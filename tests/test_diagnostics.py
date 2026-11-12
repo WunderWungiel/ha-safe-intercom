@@ -24,12 +24,14 @@ from custom_components.safe_intercom.const import DOMAIN
 from .const import (
     HOST,
     MAC,
+    MOTION_URL,
     NETWORK_RESPONSE,
     RTSP_RESPONSE,
     SYSTEMINFO_RESPONSE,
     VIDEOCODING_RESPONSE,
     controller_response,
     hanging_stream,
+    motion_response,
 )
 
 NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
@@ -61,6 +63,7 @@ async def _diagnostics(
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     aioclient_mock.get(
@@ -96,6 +99,7 @@ async def test_diagnostics_camera(
     result = await _diagnostics(hass, hass_client, aioclient_mock)
 
     assert result["rtsp"] == {"enabled": True, "port": 8554, "auth": False}
+    assert result["motion"] == {"enabled": True, "scheduled": False}
     assert result["video_coding"]["EncType1"] == "H.264"
 
 

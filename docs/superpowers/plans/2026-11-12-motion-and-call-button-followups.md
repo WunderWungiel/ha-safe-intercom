@@ -30,7 +30,7 @@ and I1 below.
 
 ## Code changes
 
-### M1: motion "on" without zones can get stuck (bug, small)
+### M1: motion "on" without zones can get stuck (done)
 
 `coordinator._handle_alarm` stores an on-line with no zones as zone `0`. An off-line that names
 only other zones (`…;0;1`) then leaves zone `0` set, so motion stays on until the stream
@@ -40,7 +40,7 @@ reconnects.
   `motion` is `bool(zones) or unzoned`.
 - Test: `1` (no zones) then `0;1` → motion off.
 
-### M2: motion sensor is misleading when detection is off on the device
+### M2: motion sensor is misleading when detection is off on the device (done)
 
 Motion lines arrive only while detection is enabled and inside its schedule (web UI §10.1:
 `Włącz`, `Czas 1/2`; spec §15 `motion_cgi`: `MotionSwitch`, `Time1Switch`, `Time2Switch`). With
@@ -72,7 +72,7 @@ ALARM OUT terminals. The result is three phantom, disabled entities that may nev
 If step 0 shows that the device never sends `SensorInAlarm`, drop the input entities and the
 subscription to that type.
 
-### C1: be lenient about the HTTP event value (small)
+### C1: be lenient about the HTTP event value (done)
 
 `parse_http_event` compares the raw value exactly. A POST body ending in `\r\n`, or a request
 whose parameter runs into trailing text, would not match. Strip whitespace from the value. Step 0.2

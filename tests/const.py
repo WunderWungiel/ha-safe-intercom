@@ -89,3 +89,37 @@ VIDEOCODING_RESPONSE = (
     "NormalBitrate2=512\r\n"
     "ResolutionList2=352*288,176*144\r\n"
 )
+
+MOTION_URL = f"http://{HOST}/cgi-bin/motion_cgi?action=get&channel=0"
+
+
+def motion_response(switch: str = "open", schedule: str = "close") -> str:
+    """A `motion_cgi?action=get` body, shaped like the HTTP API spec §15.1 example.
+
+    Several pairs share a line, and the schedule repeats for every day.
+    """
+    days = "".join(
+        f"Day_of_Week={day}\r\n"
+        f"Time1Switch={schedule if day == 'Wednesday' else 'close'}\r\n"
+        "Time1_BgnHour=0 Time1_BgnMinute=0 Time1_EndHour=23 Time1_EndMinute=30\r\n"
+        "Time2Switch=close\r\n"
+        "Time2_BgnHour=6 Time2_BgnMinute=10 Time2_EndHour=10 Time2_EndMinute=20\r\n"
+        for day in (
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        )
+    )
+    return (
+        "DetectArea0_x=0 DetectArea0_y=0 DetectArea0_w=704 DetectArea0_h=576\r\n"
+        "DetectArea1_x=0 DetectArea1_y=0 DetectArea1_w=0 DetectArea1_h=0\r\n"
+        f"MotionSwitch={switch}\r\n"
+        "Sensitivity=90\r\n"
+        "Threshold=50\r\n"
+        "\r\n"
+        f"{days}"
+    )

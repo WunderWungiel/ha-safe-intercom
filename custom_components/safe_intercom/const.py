@@ -35,3 +35,8 @@ def relay_key(number: int) -> str:
 def signal_call(entry_id: str) -> str:
     """Dispatcher signal for a call button press on the given entry."""
     return f"{DOMAIN}_{entry_id}_call"
+
+
+def motion_issue_id(entry_id: str) -> str:
+    """Repair issue raised while the device's motion detection is off."""
+    return f"motion_detection_off_{entry_id}"

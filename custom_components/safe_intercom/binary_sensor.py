@@ -11,10 +11,11 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import SafeIntercomConfigEntry
-from .const import SUPPORTED_INPUTS
+from .const import DOMAIN, SUPPORTED_INPUTS, motion_issue_id
 from .coordinator import SafeIntercomCoordinator
 from .entity import SafeIntercomEntity
 
@@ -60,6 +61,36 @@ class SafeIntercomMotionSensor(_StreamSensor):
     def is_on(self) -> bool:
         """Whether motion is detected."""
         return self.coordinator.motion
+
+    async def async_added_to_hass(self) -> None:
+        """Warn if the device's motion detection is off.
+
+        The sensor would otherwise show a confident "off" forever. The issue
+        lives as long as this entity, so disabling the sensor also clears it.
+        """
+        await super().async_added_to_hass()
+        entry = self.coordinator.config_entry
+        issue_id = motion_issue_id(entry.entry_id)
+        motion = entry.runtime_data.motion
+        if motion is not None and not motion.enabled:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                issue_id,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="motion_detection_off",
+                translation_placeholders={"name": entry.title},
+            )
+        else:
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Drop the warning; it is raised again if the sensor comes back."""
+        ir.async_delete_issue(
+            self.hass, DOMAIN, motion_issue_id(self.coordinator.config_entry.entry_id)
+        )
+        await super().async_will_remove_from_hass()
 
 
 class SafeIntercomInputSensor(_StreamSensor):

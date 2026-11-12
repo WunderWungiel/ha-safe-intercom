@@ -84,6 +84,16 @@ class RtspInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class MotionSettings:
+    """Motion detection settings reported by `motion_cgi?action=get`."""
+
+    enabled: bool
+    """`MotionSwitch`: whether the device detects motion at all."""
+    scheduled: bool
+    """Whether a Time 1/2 schedule is on for any day, limiting detection to it."""
+
+
+@dataclass(frozen=True, slots=True)
 class RelayInfo:
     """One controller relay, as reported by `controller_cgi?action=get`.
 
@@ -338,6 +348,26 @@ class SafeIntercomClient:
             raise SafeIntercomConnectionError(
                 f"Alarm stream from {self._base_url.host} failed: {err!r}"
             ) from err
+
+    async def async_get_motion_settings(self) -> MotionSettings:
+        """Fetch whether motion detection is on, and whether it is scheduled.
+
+        Needs admin rights (spec §15). The schedule keys repeat for every day
+        of the week, so they are scanned line by line rather than as a dict.
+        """
+        text = await self._get_text(
+            "/cgi-bin/motion_cgi", {"action": "get", "channel": "0"}
+        )
+        if (switch := _parse_key_values(text).get("MotionSwitch")) is None:
+            raise SafeIntercomConnectionError("motion_cgi response has no MotionSwitch")
+        scheduled = False
+        for line in text.splitlines():
+            key, _, value = line.partition("=")
+            if key.strip() in ("Time1Switch", "Time2Switch") and _is_open(
+                value.strip()
+            ):
+                scheduled = True
+        return MotionSettings(enabled=_is_open(switch), scheduled=scheduled)
 
     async def async_get_video_coding(self) -> dict[str, str]:
         """Fetch the encoder settings (codec, resolution, ...) per stream."""

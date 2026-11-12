@@ -43,5 +43,6 @@ async def async_get_config_entry_diagnostics(
         "system": asdict(data.system) if data.system is not None else None,
         "controller": asdict(data.coordinator.data),
         "rtsp": asdict(data.rtsp) if data.rtsp is not None else None,
+        "motion": asdict(data.motion) if data.motion is not None else None,
         "video_coding": video_coding,
     }

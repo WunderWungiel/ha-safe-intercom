@@ -117,5 +117,11 @@
     "snapshot_failed": {
       "message": "Failed to get a snapshot from the intercom."
     }
+  },
+  "issues": {
+    "motion_detection_off": {
+      "title": "Motion detection is off on {name}",
+      "description": "Motion detection is turned off in the intercom's web interface, so the Motion sensor will never turn on. Turn it on in Alarm settings → Motion detection, then reload the integration. If you don't need motion, disable the Motion sensor instead; this warning then goes away."
+    }
   }
 }

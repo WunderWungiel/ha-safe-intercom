@@ -17,10 +17,12 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import format_mac
 
 from .api import (
+    MotionSettings,
     RtspInfo,
     SafeIntercomAuthError,
     SafeIntercomClient,
@@ -28,7 +30,7 @@ from .api import (
     SafeIntercomError,
     SystemInfo,
 )
-from .const import DEFAULT_PORT
+from .const import DEFAULT_PORT, DOMAIN, motion_issue_id
 from .coordinator import SafeIntercomCoordinator
 from .http_event import async_register_webhook, async_unregister_webhook
 
@@ -54,6 +56,8 @@ class SafeIntercomData:
     """Model and versions; None if the firmware does not report them."""
     rtsp: RtspInfo | None = None
     """RTSP settings read at setup; None if the firmware does not report them."""
+    motion: MotionSettings | None = None
+    """Motion detection settings read at setup; None if they could not be read."""
 
 
 type SafeIntercomConfigEntry = ConfigEntry[SafeIntercomData]
@@ -119,6 +123,14 @@ async def async_setup_entry(
         _LOGGER.debug("No RTSP settings from %s: %s", client.host, err)
         rtsp = None
 
+    motion: MotionSettings | None
+    try:
+        motion = await client.async_get_motion_settings()
+    except SafeIntercomError as err:
+        # Includes auth errors: motion_cgi needs admin rights (spec §15).
+        _LOGGER.debug("No motion settings from %s: %s", client.host, err)
+        motion = None
+
     coordinator = SafeIntercomCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
 
@@ -128,6 +140,7 @@ async def async_setup_entry(
         mac=entry.unique_id or mac,
         system=system,
         rtsp=rtsp,
+        motion=motion,
     )
 
     entry.async_create_background_task(
@@ -146,3 +159,10 @@ async def async_unload_entry(
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         async_unregister_webhook(hass, entry)
     return unloaded
+
+
+async def async_remove_entry(
+    hass: HomeAssistant, entry: SafeIntercomConfigEntry
+) -> None:
+    """Drop the entry's repair issues."""
+    ir.async_delete_issue(hass, DOMAIN, motion_issue_id(entry.entry_id))

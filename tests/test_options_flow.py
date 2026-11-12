@@ -25,11 +25,13 @@ from custom_components.safe_intercom.const import CONF_ENABLED_RELAYS, DOMAIN
 from .const import (
     HOST,
     MAC,
+    MOTION_URL,
     NETWORK_RESPONSE,
     RTSP_RESPONSE,
     SYSTEMINFO_RESPONSE,
     controller_response,
     hanging_stream,
+    motion_response,
 )
 
 NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
@@ -67,6 +69,7 @@ async def _setup(
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     assert await hass.config_entries.async_setup(entry.entry_id)

@@ -57,6 +57,10 @@ the real device; prefer it.
   the credentials out only when the device reports `RtspAuth=close`. The web UI manual (§8.8)
   instead shows `.../av0_0&user=<u>&password=<p>`; that form is not used (HA's log redaction
   would not hide the password in it). `rtsp_cgi` needs admin rights (spec §28).
+- `GET /cgi-bin/motion_cgi?action=get&channel=0`: `MotionSwitch` (detection on/off) and a
+  per-day `Time1Switch`/`Time2Switch` schedule (keys repeat for each `Day_of_Week`; several pairs
+  share a line). Read once at setup; needs admin rights (spec §15). `MotionSwitch=close` raises
+  a repair issue while the motion sensor is enabled.
 - `GET /cgi-bin/alarmout_cgi?action=set&Output=<0..7>&Status=<0|1>`: drive a relay output
 - `GET /cgi-bin/controller_cgi?action=get`: controller type, relay states, per-relay `DelayN`
 - `GET /cgi-bin/alarmchangestate_cgi?channel=0[&parameter=MotionDetection;SensorInAlarm;SensorOutAlarm]`:

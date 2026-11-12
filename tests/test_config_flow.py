@@ -22,10 +22,12 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 from custom_components.safe_intercom.const import CONF_ENABLED_RELAYS, DOMAIN
 
 from .const import (
+    MOTION_URL,
     RTSP_RESPONSE,
     SYSTEMINFO_RESPONSE,
     controller_response,
     hanging_stream,
+    motion_response,
 )
 
 USER_INPUT = {
@@ -54,6 +56,7 @@ def _mock_device(
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     aioclient_mock.get(
         CONTROLLER_URL, text=controller_response(controller_type=controller_type)
     )
@@ -172,6 +175,7 @@ async def test_user_flow_controller_errors(
     aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     aioclient_mock.get(CONTROLLER_URL, **mock_kwargs)
     flow_id = await _start_flow(hass)
 
@@ -304,6 +308,7 @@ NEW_HOST = "192.0.2.11"
 NEW_NETWORK_URL = f"http://{NEW_HOST}:8080/cgi-bin/network_cgi?action=get"
 NEW_SYSTEMINFO_URL = f"http://{NEW_HOST}:8080/cgi-bin/systeminfo_cgi"
 NEW_RTSP_URL = f"http://{NEW_HOST}:8080/cgi-bin/rtsp_cgi?action=get"
+NEW_MOTION_URL = f"http://{NEW_HOST}:8080/cgi-bin/motion_cgi?action=get&channel=0"
 NEW_CONTROLLER_URL = f"http://{NEW_HOST}:8080/cgi-bin/controller_cgi?action=get"
 NEW_ALARM_URL = (
     f"http://{NEW_HOST}:8080/cgi-bin/alarmchangestate_cgi"
@@ -332,6 +337,7 @@ async def test_reconfigure_changes_host(
     aioclient_mock.get(NEW_NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(NEW_SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(NEW_RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(NEW_MOTION_URL, text=motion_response())
     aioclient_mock.get(NEW_CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(NEW_ALARM_URL, side_effect=hanging_stream)
     flow_id = await _start_reconfigure(hass, entry)
@@ -361,6 +367,7 @@ async def test_reconfigure_password(
     aioclient_mock.get(NEW_NETWORK_URL, text=NETWORK_RESPONSE)
     aioclient_mock.get(NEW_SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(NEW_RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(NEW_MOTION_URL, text=motion_response())
     aioclient_mock.get(NEW_CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(NEW_ALARM_URL, side_effect=hanging_stream)
     flow_id = await _start_reconfigure(hass, entry)

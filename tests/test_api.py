@@ -11,6 +11,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 from custom_components.safe_intercom.api import (
     AlarmEvent,
     ControllerInfo,
+    MotionSettings,
     RelayInfo,
     SafeIntercomAuthError,
     SafeIntercomClient,
@@ -24,9 +25,11 @@ from custom_components.safe_intercom.api import (
 from .const import (
     ALARM_URL,
     HOST,
+    MOTION_URL,
     SYSTEMINFO_RESPONSE,
     VIDEOCODING_RESPONSE,
     controller_response,
+    motion_response,
 )
 
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
@@ -261,3 +264,32 @@ async def test_get_video_coding(
 def test_parse_http_event(query: str, body: str, expected: str | None) -> None:
     """The `event` value comes from the query string, else the POST body."""
     assert parse_http_event(query, body) == expected
+
+
+@pytest.mark.parametrize(
+    ("switch", "schedule", "expected"),
+    [
+        ("open", "close", MotionSettings(enabled=True, scheduled=False)),
+        ("open", "open", MotionSettings(enabled=True, scheduled=True)),
+        ("close", "close", MotionSettings(enabled=False, scheduled=False)),
+    ],
+)
+async def test_get_motion_settings(
+    client: SafeIntercomClient,
+    aioclient_mock: AiohttpClientMocker,
+    switch: str,
+    schedule: str,
+    expected: MotionSettings,
+) -> None:
+    """A schedule on any one day counts, though later days repeat the keys."""
+    aioclient_mock.get(MOTION_URL, text=motion_response(switch, schedule))
+    assert await client.async_get_motion_settings() == expected
+
+
+async def test_get_motion_settings_failed(
+    client: SafeIntercomClient, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A `Request failed` body has no MotionSwitch and is an error."""
+    aioclient_mock.get(MOTION_URL, text="Request failed:Param error")
+    with pytest.raises(SafeIntercomConnectionError):
+        await client.async_get_motion_settings()

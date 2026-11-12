@@ -79,7 +79,8 @@ automation:
 These come from the intercom's event stream, as relay changes do:
 
 - **Motion**: on while any motion detection zone is active. Turn on motion detection in the
-  intercom's web interface (Alarm settings → Motion detection), or it stays off.
+  intercom's web interface (Alarm settings → Motion detection), or it stays off. If detection
+  is off, Home Assistant shows a repair warning; disable the Motion sensor if you don't need it.
 - **Alarm input 1–3**: disabled by default, because nothing tells the integration what is
   wired to them. Their state is unknown until the first change after Home Assistant connects.
 

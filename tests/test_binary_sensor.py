@@ -35,10 +35,12 @@ from custom_components.safe_intercom.coordinator import SafeIntercomCoordinator
 from .const import (
     HOST,
     MAC,
+    MOTION_URL,
     NETWORK_RESPONSE,
     RTSP_RESPONSE,
     SYSTEMINFO_RESPONSE,
     controller_response,
+    motion_response,
 )
 
 MOTION = "binary_sensor.intercom_motion"
@@ -80,6 +82,7 @@ def lines(
         f"http://{HOST}/cgi-bin/systeminfo_cgi", text=SYSTEMINFO_RESPONSE
     )
     aioclient_mock.get(f"http://{HOST}/cgi-bin/rtsp_cgi?action=get", text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     aioclient_mock.get(
         f"http://{HOST}/cgi-bin/controller_cgi?action=get", text=controller_response()
     )

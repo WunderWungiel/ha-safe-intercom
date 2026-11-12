@@ -117,5 +117,11 @@
     "snapshot_failed": {
       "message": "Nie udało się pobrać zdjęcia z bramofonu."
     }
+  },
+  "issues": {
+    "motion_detection_off": {
+      "title": "Detekcja ruchu jest wyłączona w {name}",
+      "description": "Detekcja ruchu jest wyłączona w interfejsie WWW bramofonu, więc czujnik Ruch nigdy się nie włączy. Włącz ją w Ustawienia alarmu → Ustawienia detekcji ruchu, a następnie przeładuj integrację. Jeśli nie potrzebujesz detekcji ruchu, wyłącz zamiast tego czujnik Ruch; to ostrzeżenie wtedy zniknie."
+    }
   }
 }

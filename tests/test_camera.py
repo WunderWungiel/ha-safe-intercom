@@ -36,11 +36,13 @@ from custom_components.safe_intercom.const import DOMAIN
 from .const import (
     HOST,
     MAC,
+    MOTION_URL,
     NETWORK_RESPONSE,
     RTSP_RESPONSE,
     SYSTEMINFO_RESPONSE,
     controller_response,
     hanging_stream,
+    motion_response,
 )
 
 NETWORK_URL = f"http://{HOST}/cgi-bin/network_cgi?action=get"
@@ -74,6 +76,7 @@ async def test_get_rtsp_info(
 ) -> None:
     """The spec's rtsp_cgi example is parsed."""
     aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     assert await client.async_get_rtsp_info() == RtspInfo(
         enabled=True, port=8554, auth=False
     )
@@ -101,6 +104,7 @@ async def test_get_rtsp_info_defaults(
 ) -> None:
     """Missing or invalid keys fall back to the factory defaults."""
     aioclient_mock.get(RTSP_URL, text=text)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     assert await client.async_get_rtsp_info() == expected
 
 
@@ -170,6 +174,7 @@ async def _setup(
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(RTSP_URL, **(rtsp_kwargs or {"text": RTSP_RESPONSE}))
+    aioclient_mock.get(MOTION_URL, text=motion_response())
     aioclient_mock.get(SNAPSHOT_URL, **(snapshot_kwargs or {"content": JPEG}))
     entry = MockConfigEntry(
         domain=DOMAIN,
