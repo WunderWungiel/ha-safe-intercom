@@ -29,8 +29,8 @@ from .coordinator import SafeIntercomCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-# TODO: Platform.CAMERA, Platform.EVENT, ...
-PLATFORMS: list[Platform] = [Platform.SWITCH]
+# TODO: Platform.EVENT, ...
+PLATFORMS: list[Platform] = [Platform.CAMERA, Platform.SWITCH]
 
 
 @dataclass

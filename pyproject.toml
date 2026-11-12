@@ -7,6 +7,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = [
+    "PyTurboJPEG",  # needed to load the camera component in tests
     "pytest-homeassistant-custom-component",
     "ruff",
 ]

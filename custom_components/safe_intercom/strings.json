@@ -76,6 +76,14 @@
     }
   },
   "entity": {
+    "camera": {
+      "main_stream": {
+        "name": "Main stream"
+      },
+      "sub_stream": {
+        "name": "Alternative stream"
+      }
+    },
     "switch": {
       "relay": {
         "name": "Relay {number}"

@@ -4,7 +4,8 @@ Custom integration for SAFE IP intercoms (S03M / S06 / S06M / S06A).
 
 > **Status:** early development. Controller relays work. Changes made elsewhere (for example
 > in the SAFE app) show up instantly through the device's event stream; the state is also
-> re-read every 30 s as a safety net. Camera and call button are not implemented yet.
+> re-read every 30 s as a safety net. The camera works (main and alternative streams); the
+> call button is not implemented yet.
 
 ## Installation (HACS)
 
@@ -28,6 +29,17 @@ Only the 3-relay controller (`3n`) is supported so far.
 - **Diagnostics:** download them from the device page; credentials, host and MAC are redacted.
 
 ## Entities
+
+### Cameras
+
+- **Main stream** (`rtsp://<host>:<port>/av0_0`): enabled by default.
+- **Alternative stream** (`av0_1`, lower resolution): disabled by default. Enable it on the
+  device page if you want a lighter feed for dashboards.
+
+Both show the same JPEG snapshot from the intercom. RTSP must be enabled in the intercom's web
+interface (Network settings → RTSP); the port is read from the device each time a stream starts.
+
+### Relays
 
 Each enabled relay is a **switch** (`Relay 1`, `Relay 2`, `Relay 3`) that shows the relay's real
 state:

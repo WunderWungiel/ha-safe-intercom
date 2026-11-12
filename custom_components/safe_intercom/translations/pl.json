@@ -76,6 +76,14 @@
     }
   },
   "entity": {
+    "camera": {
+      "main_stream": {
+        "name": "Strumień główny"
+      },
+      "sub_stream": {
+        "name": "Strumień alternatywny"
+      }
+    },
     "switch": {
       "relay": {
         "name": "Przekaźnik {number}"

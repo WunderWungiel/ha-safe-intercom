@@ -51,7 +51,11 @@ Auth: the spec puts `user=`/`pwd=` in the query string. HTTP Basic auth (`curl -
 the real device; prefer it.
 
 - `rtsp://<host>/av0_0` (main stream), `rtsp://<host>/av0_1` (sub stream)
-- `GET /cgi-bin/images_cgi?channel=0`: JPEG snapshot
+- `GET /cgi-bin/images_cgi?channel=0`: JPEG snapshot (errors: HTTP 200 + `Request failed:...`)
+- `GET /cgi-bin/rtsp_cgi?action=get`: `RtspSwitch`, `RtspAuth`, `RtspPort` (default 554).
+  The integration builds `rtsp://user:pass@host:port/av0_N`. The web UI manual (§8.8) instead
+  shows `.../av0_0&user=<u>&password=<p>` for RTSP auth; **not yet verified** which one the
+  device accepts.
 - `GET /cgi-bin/alarmout_cgi?action=set&Output=<0..7>&Status=<0|1>`: drive a relay output
 - `GET /cgi-bin/controller_cgi?action=get`: controller type, relay states, per-relay `DelayN`
 - `GET /cgi-bin/alarmchangestate_cgi?channel=0[&parameter=MotionDetection;SensorInAlarm;SensorOutAlarm]`:

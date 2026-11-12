@@ -21,6 +21,13 @@ STREAM_TIMEOUT = aiohttp.ClientTimeout(total=None, connect=10, sock_read=20)
 
 ALARM_SENSOR_OUT = "SensorOutAlarm"
 
+DEFAULT_RTSP_PORT = 554
+
+STREAM_MAIN = 0
+"""Main stream profile, `av0_0`."""
+STREAM_SUB = 1
+"""Alternative (sub) stream profile, `av0_1`."""
+
 
 class SafeIntercomError(Exception):
     """Base error for the SAFE intercom client."""
@@ -58,6 +65,15 @@ class SystemInfo:
     model: str | None
     software_version: str | None
     hardware_version: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class RtspInfo:
+    """RTSP server settings reported by `rtsp_cgi?action=get`."""
+
+    enabled: bool
+    port: int
+    auth: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +205,8 @@ class SafeIntercomClient:
         """Initialize the client."""
         self._session = session
         self._base_url = URL.build(scheme="http", host=host, port=port)
+        self._username = username
+        self._password = password
         self._headers = {"Authorization": aiohttp.encode_basic_auth(username, password)}
 
     @property
@@ -293,4 +311,61 @@ class SafeIntercomClient:
                 f"Alarm stream from {self._base_url.host} failed: {err!r}"
             ) from err
 
-    # TODO: snapshot.
+    async def async_get_rtsp_info(self) -> RtspInfo:
+        """Fetch the RTSP server settings."""
+        data = _parse_key_values(
+            await self._get_text("/cgi-bin/rtsp_cgi", {"action": "get"})
+        )
+        try:
+            port = int(data.get("RtspPort", DEFAULT_RTSP_PORT))
+        except ValueError:
+            port = DEFAULT_RTSP_PORT
+        return RtspInfo(
+            # Missing keys mean old firmware; assume the factory defaults.
+            enabled=data.get("RtspSwitch", "open") == "open",
+            port=port,
+            auth=_is_open(data.get("RtspAuth")),
+        )
+
+    def rtsp_url(self, port: int, stream: int) -> str:
+        """Return the RTSP URL of `stream` (STREAM_MAIN/STREAM_SUB), with credentials.
+
+        The result contains the password; never log it.
+        """
+        return str(
+            URL.build(
+                scheme="rtsp",
+                user=self._username,
+                password=self._password,
+                host=self.host,
+                port=port,
+                path=f"/av0_{stream}",
+            )
+        )
+
+    async def async_get_snapshot(self) -> bytes:
+        """Fetch a JPEG snapshot of the camera."""
+        url = self._base_url.with_path("/cgi-bin/images_cgi").with_query(
+            {"channel": "0"}
+        )
+        try:
+            async with self._session.get(
+                url, headers=self._headers, timeout=REQUEST_TIMEOUT
+            ) as resp:
+                if resp.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
+                    raise SafeIntercomAuthError
+                if resp.status != HTTPStatus.OK:
+                    raise SafeIntercomConnectionError(
+                        f"Unexpected HTTP status {resp.status} from images_cgi"
+                    )
+                body = await resp.read()
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise SafeIntercomConnectionError(
+                f"Error communicating with {self._base_url.host}: {err!r}"
+            ) from err
+        # Errors come back as HTTP 200 with a `Request failed:...` text body.
+        if not body.startswith(b"\xff\xd8"):
+            raise SafeIntercomCommandError(
+                body[:100].decode(errors="replace").strip() or "Empty snapshot"
+            )
+        return body
