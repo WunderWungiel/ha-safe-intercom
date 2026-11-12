@@ -338,7 +338,8 @@ class SafeIntercomClient:
             # Missing keys mean old firmware; assume the factory defaults.
             enabled=data.get("RtspSwitch", "open") == "open",
             port=port,
-            auth=_is_open(data.get("RtspAuth")),
+            # Unknown means "send credentials": only an explicit close drops them.
+            auth=data.get("RtspAuth") != "close",
         )
 
     def rtsp_url(self, rtsp: RtspInfo | None, stream: int) -> str | None:

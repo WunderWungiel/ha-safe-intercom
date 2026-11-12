@@ -84,7 +84,11 @@ async def test_get_rtsp_info(
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
-        ("", RtspInfo(enabled=True, port=554, auth=False)),
+        # Unknown auth setting: keep credentials in the URL.
+        ("", RtspInfo(enabled=True, port=554, auth=True)),
+        # The device's error form (HTTP 200) carries no settings.
+        ("Request failed:Param error\r\n", RtspInfo(enabled=True, port=554, auth=True)),
+        ("RtspAuth=close\r\n", RtspInfo(enabled=True, port=554, auth=False)),
         (
             "RtspSwitch=close\r\nRtspAuth=open\r\nRtspPort=junk\r\n",
             RtspInfo(enabled=False, port=554, auth=True),
@@ -271,15 +275,20 @@ async def test_rtsp_info_unavailable_uses_defaults(
     )
 
 
-async def test_rtsp_info_auth_error_starts_reauth(
+async def test_rtsp_info_auth_error_still_loads(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """Rejected credentials on rtsp_cgi fail setup and start reauth."""
+    """rtsp_cgi needs admin rights (spec §28); a refusal keeps the defaults.
+
+    network_cgi has already accepted the credentials, so this is no reason
+    to fail setup or ask for reauthentication.
+    """
     entry = await _setup(hass, aioclient_mock, rtsp_kwargs={"status": 401})
-    assert entry.state is ConfigEntryState.SETUP_ERROR
-    assert any(
-        flow["context"]["source"] == "reauth"
-        for flow in hass.config_entries.flow.async_progress()
+    assert entry.state is ConfigEntryState.LOADED
+    assert not hass.config_entries.flow.async_progress()
+    assert (
+        await async_get_stream_source(hass, MAIN)
+        == f"rtsp://admin:secret@{HOST}:554/av0_0"
     )
 
 

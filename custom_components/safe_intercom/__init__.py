@@ -90,9 +90,9 @@ async def async_setup_entry(
     rtsp: RtspInfo | None
     try:
         rtsp = await client.async_get_rtsp_info()
-    except SafeIntercomAuthError as err:
-        raise ConfigEntryAuthFailed("Invalid credentials") from err
     except SafeIntercomError as err:
+        # Includes auth errors: rtsp_cgi needs admin rights (spec §28), while
+        # network_cgi above has already accepted the credentials.
         _LOGGER.debug("No RTSP settings from %s: %s", client.host, err)
         rtsp = None
 
