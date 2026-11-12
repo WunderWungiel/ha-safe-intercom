@@ -317,6 +317,14 @@ class SafeIntercomClient:
                 f"Alarm stream from {self._base_url.host} failed: {err!r}"
             ) from err
 
+    async def async_get_video_coding(self) -> dict[str, str]:
+        """Fetch the encoder settings (codec, resolution, ...) per stream."""
+        return _parse_key_values(
+            await self._get_text(
+                "/cgi-bin/videocoding_cgi", {"action": "get", "channel": "0"}
+            )
+        )
+
     async def async_get_rtsp_info(self) -> RtspInfo:
         """Fetch the RTSP server settings."""
         data = _parse_key_values(

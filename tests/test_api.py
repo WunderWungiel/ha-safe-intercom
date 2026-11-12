@@ -20,7 +20,7 @@ from custom_components.safe_intercom.api import (
     parse_alarm_event,
 )
 
-from .const import HOST, SYSTEMINFO_RESPONSE, controller_response
+from .const import HOST, SYSTEMINFO_RESPONSE, VIDEOCODING_RESPONSE, controller_response
 
 CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
 ALARMOUT_URL = f"http://{HOST}/cgi-bin/alarmout_cgi"
@@ -208,3 +208,18 @@ async def test_get_system_info(
         "B1710", "2.0.0.2.52.18", "Hi3518 IP Camera"
     )
     assert client.base_url == f"http://{HOST}:80"
+
+
+async def test_get_video_coding(
+    aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient
+) -> None:
+    """The spec's videocoding_cgi example is parsed into its keys."""
+    aioclient_mock.get(
+        f"http://{HOST}/cgi-bin/videocoding_cgi?action=get&channel=0",
+        text=VIDEOCODING_RESPONSE,
+    )
+    result = await client.async_get_video_coding()
+    assert result["EncType1"] == "H.264"
+    assert result["Resolution2"] == "352*288"
+    assert "Main stream options:" not in result
+    assert "Main stream options" not in result

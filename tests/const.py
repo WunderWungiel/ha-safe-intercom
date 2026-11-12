@@ -61,3 +61,25 @@ RTSP_RESPONSE = (
     "Multicast Options:\r\n"
     "MultServer=231.0.0.222\r\n"
 )
+
+# From the HTTP API spec §9.1 example.
+VIDEOCODING_RESPONSE = (
+    "EncTypes= H.264,MJPEG\r\n"
+    "Main stream options:\r\n"
+    "EncType1=H.264\r\n"
+    "Resolution1=704*576\r\n"
+    "KeyInterval1=200\r\n"
+    "FrameRate1=25\r\n"
+    "BitflowType1=CBR\r\n"
+    "NormalBitrate1=512\r\n"
+    "AlarmBitrate1=2800\r\n"
+    "ResolutionList1=704*576,704*288,352*288,176*144\r\n"
+    "Sub stream options:\r\n"
+    "EncType2=H.264\r\n"
+    "Resolution2=352*288\r\n"
+    "KeyInterval2=50\r\n"
+    "FrameRate2=25\r\n"
+    "BitflowType2=VBR\r\n"
+    "NormalBitrate2=512\r\n"
+    "ResolutionList2=352*288,176*144\r\n"
+)
