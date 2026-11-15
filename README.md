@@ -50,8 +50,14 @@ SAFE IP intercoms sold by SAFE Automation (Poland), built on Hi3518A / Hi3521 fi
 | S06A (firmware 3.1.5.0.7.18.36) | Tested |
 | S03M, S06, S06M | Expected to work (same HTTP API), untested |
 
-Only the 3-relay controller (`3n`) is supported so far. If you have a different model or
-controller, please open an issue with the diagnostics attached.
+| Controller (`Type` reported by the intercom) | Relays | Status |
+|---|---|---|
+| NC311P (`3n`) | 3 | Tested |
+| Wired 3-channel, S03P(C1) (`3`) | 3 | From documentation, untested |
+| 1-channel, NC103 / NC103P (`1`) | 1 | From documentation, untested |
+
+Other controller types get no relay switches. If you have a different model or controller,
+or an untested one works (or doesn't), please open an issue with the diagnostics attached.
 
 ## Installation
 
