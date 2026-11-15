@@ -24,8 +24,8 @@
 </p>
 
 > [!IMPORTANT]
-> **Early development.** Relays and the camera are tested on a real S06A. Relay changes made
-> elsewhere (for example in the SAFE app) show up instantly. The call button, motion and alarm
+> **Early development.** Relays, the camera and the call button are tested on a real S06A. Relay
+> changes made elsewhere (for example in the SAFE app) show up instantly. Motion and alarm
 > inputs are implemented but not yet verified on a real device. Reports, good or bad, are very
 > welcome in [issues](https://github.com/WunderWungiel/ha-safe-intercom/issues).
 

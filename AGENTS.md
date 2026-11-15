@@ -147,7 +147,7 @@ The HTTP API has no call-button event in the alarm stream. The options are:
   spec example (yarl would encode it as `%3B`). Not yet verified on the device: whether this
   form (or the encoded one) delivers all three types, the motion line format, and how many
   `SensorInAlarm` inputs exist (3 assumed from Modbus registers 106–108).
-- **Call button via HTTP event (not yet verified).** The integration registers a local-only
+- **Call button via HTTP event (verified on S06A).** The integration registers a local-only
   webhook per entry (`entry.data["webhook_id"]`) and shows the HTTP event settings as read-only
   fields in the options flow's "Call button setup" step; the user enters them on the device. A request whose query string (or POST
   body) has `event=call` fires the `ring` event. The event entity is always available while
@@ -155,9 +155,9 @@ The HTTP API has no call-button event in the alarm stream. The options are:
   ring to state triggers. Diagnostics count webhook requests and keep the last one.
   **Verified:** the web UI's Request field holds at most 61 characters, so webhook IDs are
   32 hex characters (`/api/webhook/<id>` = 45), not HA's default 64; config entry 1.3
-  replaces longer IDs. Still to
-  check on a real press: the method and URL the device actually sends (the manual's §8.13
-  examples omit the Request path), and whether HA accepts the device's `HTTP/1.0` request.
+  replaces longer IDs. **Verified (S06A, firmware 3.1.5.0.7.18.36):** a real call-button press
+  fires the `ring` event in Home Assistant. Not recorded: the exact method and URL the
+  device sends (the manual's §8.13 examples omit the Request path).
 - Known install: relay 1 (`Output=0`) = wicket strike, relay 2 (`Output=1`) = gate
   pulse, relay 3 (`Output=2`) = gate lights (latching). Use this for manual testing only; never
   hard-code it.
