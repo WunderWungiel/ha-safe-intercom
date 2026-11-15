@@ -123,7 +123,7 @@ def _controller_placeholders(controller: ControllerInfo) -> dict[str, str]:
     placeholders = {"controller_type": controller.type}
     for number in SUPPORTED_RELAYS:
         relay = controller.relay(number)
-        placeholders[f"delay_{number}"] = str(relay.delay) if relay else "?"
+        placeholders[f"delay_{number}"] = f"{relay.delay:g}" if relay else "?"
     return placeholders
 
 

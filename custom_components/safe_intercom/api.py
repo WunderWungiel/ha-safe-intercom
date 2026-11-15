@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from http import HTTPStatus
+import math
 from urllib.parse import parse_qs
 
 import aiohttp
@@ -54,6 +55,15 @@ class SafeIntercomCommandError(SafeIntercomError):
 
 CONTROLLER_TYPE_3N = "3n"
 """Controller type reported by current firmware for the 3-relay controller."""
+
+CONTROLLER_RELAYS: dict[str, int] = {"1": 1, "3": 3, "3n": 3}
+"""Relay count per `controller_cgi` `Type`.
+
+`3n` (the NC311P) is verified on a real device; `1` (1-channel NC103/NC103P)
+and `3` (wired 3-channel S03P(C1)) come from the API spec and manuals. The
+response lists `Delay1..3` even for a 1-channel controller (spec §22.1), so
+the keys present cannot be trusted to count relays.
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,7 +111,7 @@ class RelayInfo:
     """
 
     number: int
-    delay: int
+    delay: float
     """Seconds until the relay drops back by itself; 0 means latching."""
     is_on: bool
     close_by_call: bool
@@ -116,6 +126,12 @@ class ControllerInfo:
     type: str
     relays: tuple[RelayInfo, ...]
     play_sound: bool
+
+    @property
+    def supported_relays(self) -> tuple[RelayInfo, ...]:
+        """Relays that exist on this controller type; none for unknown types."""
+        count = CONTROLLER_RELAYS.get(self.type, 0)
+        return tuple(r for r in self.relays if r.number <= count)
 
     def relay(self, number: int) -> RelayInfo | None:
         """Return the relay with the given 1-based number, if present."""
@@ -184,11 +200,13 @@ def _parse_controller(data: dict[str, str]) -> ControllerInfo:
     number = 1
     while f"Status{number}" in data or f"Delay{number}" in data:
         try:
-            delay = int(data.get(f"Delay{number}", "0"))
-        except ValueError as err:
+            delay = float(data.get(f"Delay{number}", "0"))
+        except ValueError:
+            delay = math.nan
+        if not math.isfinite(delay) or delay < 0:
             raise SafeIntercomConnectionError(
                 f"controller_cgi returned an invalid Delay{number}"
-            ) from err
+            )
         relays.append(
             RelayInfo(
                 number=number,

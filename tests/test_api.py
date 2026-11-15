@@ -69,7 +69,12 @@ async def test_get_controller(
 
 @pytest.mark.parametrize(
     "text",
-    ["Request failed:Param error\r\n", "Type=3n\r\nDelay1=x\r\nStatus1=0\r\n"],
+    [
+        "Request failed:Param error\r\n",
+        "Type=3n\r\nDelay1=x\r\nStatus1=0\r\n",
+        "Type=3n\r\nDelay1=nan\r\nStatus1=0\r\n",
+        "Type=3n\r\nDelay1=-1\r\nStatus1=0\r\n",
+    ],
 )
 async def test_get_controller_invalid(
     aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient, text: str
@@ -79,6 +84,38 @@ async def test_get_controller_invalid(
 
     with pytest.raises(SafeIntercomConnectionError):
         await client.async_get_controller()
+
+
+@pytest.mark.parametrize(
+    ("controller_type", "numbers"),
+    [("1", (1,)), ("3", (1, 2, 3)), ("3n", (1, 2, 3)), ("9", ()), ("3N", ())],
+)
+async def test_supported_relays(
+    aioclient_mock: AiohttpClientMocker,
+    client: SafeIntercomClient,
+    controller_type: str,
+    numbers: tuple[int, ...],
+) -> None:
+    """Each known type exposes a fixed number of relays; unknown types none."""
+    aioclient_mock.get(
+        CONTROLLER_URL, text=controller_response(controller_type=controller_type)
+    )
+
+    info = await client.async_get_controller()
+
+    assert len(info.relays) == 3
+    assert tuple(r.number for r in info.supported_relays) == numbers
+
+
+async def test_get_controller_fractional_delay(
+    aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient
+) -> None:
+    """NC311P delays can be fractional (0.1-3600 s per the Beward manual)."""
+    aioclient_mock.get(CONTROLLER_URL, text="Type=3n\r\nDelay1=0.5\r\nStatus1=0\r\n")
+
+    info = await client.async_get_controller()
+
+    assert info.relay(1).delay == 0.5
 
 
 @pytest.mark.parametrize(
