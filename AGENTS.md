@@ -153,6 +153,8 @@ The HTTP API has no call-button event in the alarm stream. The options are:
   `entry.runtime_data` in `async_setup_entry`, and use the alias everywhere.
 - All I/O is async through `aiohttp` (`async_get_clientsession(hass)`). No `requests`, no blocking
   calls in the event loop.
+- Minimum HA is 2026.7.0 (`hacs.json`): the first release with aiohttp 3.14, which added
+  `aiohttp.encode_basic_auth`. Raise it if you use a newer API.
 - Keep device protocol code in `api.py` with no Home Assistant imports, so it can later move into
   a PyPI library.
 - Use `has_entity_name = True`, translated entity names (`strings.json` + `translations/`),
