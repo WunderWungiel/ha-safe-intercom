@@ -422,15 +422,15 @@ class SafeIntercomOptionsFlow(OptionsFlowWithReload):
     ) -> ConfigFlowResult:
         """Show what to enter in the intercom's HTTP event settings.
 
-        Nothing here is stored: submitting keeps the options unchanged, which
-        closes the dialog without a reload.
+        Nothing here is stored; submitting returns to the menu.
         """
         if user_input is not None:
-            return self.async_create_entry(data=dict(self.config_entry.options))
+            return await self.async_step_init()
 
         return self.async_show_form(
             step_id="call_button",
             data_schema=_http_event_schema(
                 _http_event_values(self.hass, self.config_entry)
             ),
+            last_step=False,
         )

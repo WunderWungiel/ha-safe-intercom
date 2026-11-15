@@ -181,11 +181,11 @@ async def test_options_shows_http_event_settings(
         "call_parameter": "event=call",
     }
 
-    # Nothing is stored, so submitting keeps the options and does not reload.
+    # Nothing is stored: submitting returns to the menu without a reload.
     old_data = entry.runtime_data
     result = await hass.config_entries.options.async_configure(result["flow_id"], {})
     await hass.async_block_till_done()
-    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["type"] is FlowResultType.MENU
     assert entry.options == {CONF_ENABLED_RELAYS: [1, 3]}
     assert entry.runtime_data is old_data
 
