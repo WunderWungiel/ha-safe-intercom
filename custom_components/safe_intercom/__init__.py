@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import logging
 
-from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_HOST,
@@ -33,9 +32,11 @@ from .api import (
 from .const import DEFAULT_PORT, DOMAIN, motion_issue_id
 from .coordinator import SafeIntercomCoordinator
 from .http_event import (
+    WEBHOOK_ID_LENGTH,
     HttpEventStats,
     async_register_webhook,
     async_unregister_webhook,
+    generate_webhook_id,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -79,9 +80,15 @@ async def async_migrate_entry(
         # 1.2: webhook for the call button's HTTP event.
         hass.config_entries.async_update_entry(
             entry,
-            data={**entry.data, CONF_WEBHOOK_ID: webhook.async_generate_id()},
+            data={**entry.data, CONF_WEBHOOK_ID: generate_webhook_id()},
             minor_version=2,
         )
+    if entry.minor_version < 3:
+        # 1.3: HA's 64-character webhook IDs did not fit the device's Request field.
+        data = dict(entry.data)
+        if len(data[CONF_WEBHOOK_ID]) > WEBHOOK_ID_LENGTH:
+            data[CONF_WEBHOOK_ID] = generate_webhook_id()
+        hass.config_entries.async_update_entry(entry, data=data, minor_version=3)
     return True
 
 

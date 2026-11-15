@@ -47,6 +47,7 @@ from .const import (
     enabled_relays,
     relay_key,
 )
+from .http_event import generate_webhook_id
 
 if TYPE_CHECKING:
     from . import SafeIntercomConfigEntry
@@ -171,7 +172,7 @@ class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for SAFE Intercom."""
 
     VERSION = 1
-    MINOR_VERSION = 2
+    MINOR_VERSION = 3
 
     def __init__(self) -> None:
         """Initialize the flow."""
@@ -328,7 +329,7 @@ class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
     def _create_entry(self, enabled: list[int]) -> ConfigFlowResult:
         return self.async_create_entry(
             title=self._title,
-            data={**self._data, CONF_WEBHOOK_ID: webhook.async_generate_id()},
+            data={**self._data, CONF_WEBHOOK_ID: generate_webhook_id()},
             options={CONF_ENABLED_RELAYS: enabled},
         )
 

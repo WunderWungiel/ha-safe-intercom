@@ -152,7 +152,10 @@ The HTTP API has no call-button event in the alarm stream. The options are:
   options flow; the user enters them on the device. A request whose query string (or POST
   body) has `event=call` fires the `ring` event. The event entity is always available while
   loaded (it does not follow the coordinator), so a controller outage cannot replay the last
-  ring to state triggers. Diagnostics count webhook requests and keep the last one. Still to
+  ring to state triggers. Diagnostics count webhook requests and keep the last one.
+  **Verified:** the web UI's Request field holds at most 61 characters, so webhook IDs are
+  32 hex characters (`/api/webhook/<id>` = 45), not HA's default 64; config entry 1.3
+  replaces longer IDs. Still to
   check on a real press: the method and URL the device actually sends (the manual's §8.13
   examples omit the Request path), and whether HA accepts the device's `HTTP/1.0` request.
 - Known install: relay 1 (`Output=0`) = wicket strike, relay 2 (`Output=1`) = gate

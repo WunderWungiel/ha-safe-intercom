@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+import secrets
 from typing import TYPE_CHECKING
 
 from aiohttp import hdrs, web
@@ -52,6 +53,19 @@ class HttpEventStats:
 
     requests: int = 0
     last: HttpEventRecord | None = None
+
+
+WEBHOOK_ID_LENGTH = 32
+"""Hex characters in a webhook ID.
+
+The device's Request field holds at most 61 characters; HA's default 64-character
+ID would make the path 77. 128 bits is plenty for a local-only webhook.
+"""
+
+
+def generate_webhook_id() -> str:
+    """Return a webhook ID short enough for the device's Request field."""
+    return secrets.token_hex(WEBHOOK_ID_LENGTH // 2)
 
 
 def async_register_webhook(hass: HomeAssistant, entry: SafeIntercomConfigEntry) -> None:

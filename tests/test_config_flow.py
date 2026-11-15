@@ -100,8 +100,10 @@ async def test_user_flow_creates_entry(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Intercom"
     assert result["data"] == {**USER_INPUT, CONF_WEBHOOK_ID: ANY}
-    assert result["data"][CONF_WEBHOOK_ID]
-    assert result["result"].minor_version == 2
+    # The device's Request field holds at most 61 characters, query included.
+    webhook_id = result["data"][CONF_WEBHOOK_ID]
+    assert len(f"/api/webhook/{webhook_id}?event=call") <= 61
+    assert result["result"].minor_version == 3
     assert result["options"] == {CONF_ENABLED_RELAYS: [1, 3]}
     assert result["result"].unique_id == "00:5d:20:a0:35:12"
 

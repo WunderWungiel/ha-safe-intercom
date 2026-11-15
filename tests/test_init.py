@@ -221,10 +221,10 @@ async def test_migrate_adds_webhook_id(
     await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.LOADED
-    assert entry.minor_version == 2
+    assert entry.minor_version == 3
     webhook_id = entry.data[CONF_WEBHOOK_ID]
     assert isinstance(webhook_id, str)
-    assert len(webhook_id) >= 32
+    assert len(webhook_id) == 32
     assert {k: v for k, v in entry.data.items() if k != CONF_WEBHOOK_ID} == before
 
 
@@ -250,6 +250,33 @@ async def test_migrate_keeps_existing_webhook_id(
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert entry.data[CONF_WEBHOOK_ID] == "existing"
+
+
+async def test_migrate_shortens_long_webhook_id(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A 64-character webhook ID makes the path too long for the device's field."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Intercom",
+        unique_id=MAC,
+        minor_version=2,
+        data={
+            CONF_HOST: HOST,
+            CONF_PORT: 80,
+            CONF_USERNAME: "admin",
+            CONF_PASSWORD: "secret",
+            CONF_WEBHOOK_ID: "a" * 64,
+        },
+    )
+    entry.add_to_hass(hass)
+    _mock_device(aioclient_mock)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.minor_version == 3
+    webhook_id = entry.data[CONF_WEBHOOK_ID]
+    assert len(webhook_id) == 32
+    assert webhook_id != "a" * 32
 
 
 async def test_migrate_refuses_future_version(hass: HomeAssistant) -> None:
