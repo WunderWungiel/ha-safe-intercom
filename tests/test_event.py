@@ -8,6 +8,7 @@ from homeassistant.const import (
     CONF_PORT,
     CONF_USERNAME,
     CONF_WEBHOOK_ID,
+    STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
 from homeassistant.core import HomeAssistant
@@ -22,6 +23,7 @@ from custom_components.safe_intercom.const import DOMAIN
 
 from .const import (
     ALARM_URL,
+    CONTROLLER_URL,
     HOST,
     MAC,
     MOTION_URL,
@@ -51,9 +53,7 @@ async def entry(
     )
     aioclient_mock.get(f"http://{HOST}/cgi-bin/rtsp_cgi?action=get", text=RTSP_RESPONSE)
     aioclient_mock.get(MOTION_URL, text=motion_response())
-    aioclient_mock.get(
-        f"http://{HOST}/cgi-bin/controller_cgi?action=get", text=controller_response()
-    )
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response())
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -188,3 +188,32 @@ async def test_undecodable_body_logs_no_error(
     # HA core's own debug and access logs show webhook URLs; that's outside the
     # integration. What must not happen is an error log with a traceback.
     assert not [r for r in caplog.records if r.levelname == "ERROR"]
+
+
+async def test_call_button_available_while_controller_fails(
+    hass: HomeAssistant,
+    hass_client_no_auth: ClientSessionGenerator,
+    aioclient_mock: AiohttpClientMocker,
+    entry: MockConfigEntry,
+) -> None:
+    """A controller outage leaves the call button alone.
+
+    Rings come by webhook, not from controller_cgi. Flipping to unavailable
+    and back would replay the last `ring` to state-trigger automations.
+    """
+    client = await hass_client_no_auth()
+    await client.get(f"{WEBHOOK_URL}?event=call")
+    await hass.async_block_till_done()
+    rang = hass.states.get(CALL_BUTTON)
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(CONTROLLER_URL, status=500)
+    coordinator = entry.runtime_data.coordinator
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert not coordinator.last_update_success
+
+    state = hass.states.get(CALL_BUTTON)
+    assert state.state != STATE_UNAVAILABLE
+    assert state.state == rang.state
+    assert state.last_changed == rang.last_changed

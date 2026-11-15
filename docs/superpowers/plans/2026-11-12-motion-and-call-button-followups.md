@@ -100,9 +100,9 @@ sends exactly one request.
 
 ## Not changing
 
-- **Event entity availability** follows the coordinator. A ring that arrives while
-  `controller_cgi` is failing still updates the event state; HA writes it but the entity shows
-  unavailable. The device can still send to HA in that situation, so this is rare. Leave it.
+- **Event entity availability** ~~follows the coordinator~~. Changed on 2026-11-15: the
+  entity is always available, because returning from unavailable replayed the last ring to
+  state-trigger automations (see the 2026-11-15 device test plan, finding B1).
 - **Modbus for the call button** (register 102). It needs no device setup, but adds a dependency
   and constant polling. Keep it as the fallback only if the HTTP event proves unusable in step 0.2.
 - **Initial input state.** Inputs stay unknown until they first change. `alarmstate_cgi` or

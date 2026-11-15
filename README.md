@@ -59,12 +59,18 @@ never changes device settings itself):
 The webhook only accepts requests from your local network. Keep its path private: anyone on
 your network who knows it can trigger the event.
 
+The call button stays available when the intercom is unreachable. Reloading the integration
+or restarting Home Assistant still makes it briefly unavailable, and its return to the last
+`ring` would look like a new press. Exclude `unavailable` in the trigger:
+
 ```yaml
 automation:
   - alias: Doorbell
     triggers:
       - trigger: state
         entity_id: event.intercom_call_button
+        not_from: unavailable
+        not_to: unavailable
     conditions:
       - condition: template
         value_template: "{{ trigger.to_state.attributes.event_type == 'ring' }}"

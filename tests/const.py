@@ -7,6 +7,7 @@ MAC = "00:5d:20:a0:35:12"
 
 ALARM_PARAMETER = "MotionDetection;SensorInAlarm;SensorOutAlarm"
 """Alarm types the integration subscribes to, `;`-separated as sent."""
+CONTROLLER_URL = f"http://{HOST}/cgi-bin/controller_cgi?action=get"
 ALARM_URL = (
     f"http://{HOST}/cgi-bin/alarmchangestate_cgi?channel=0&parameter={ALARM_PARAMETER}"
 )

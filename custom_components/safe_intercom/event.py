@@ -38,6 +38,17 @@ class SafeIntercomCallButton(SafeIntercomEntity, EventEntity):
         """Initialize the call button."""
         super().__init__(coordinator, "call_button")
 
+    @property
+    def available(self) -> bool:
+        """Always available while the entry is loaded.
+
+        Presses arrive by webhook, whether or not `controller_cgi` answers.
+        Following the coordinator would turn the entity unavailable and back
+        on every outage, and state-trigger automations would take the return
+        to the last `ring` for a new press.
+        """
+        return True
+
     async def async_added_to_hass(self) -> None:
         """Listen for presses reported by the webhook."""
         await super().async_added_to_hass()
