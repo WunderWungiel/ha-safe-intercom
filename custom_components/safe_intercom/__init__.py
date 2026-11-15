@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 
 from homeassistant.components import webhook
@@ -32,7 +32,11 @@ from .api import (
 )
 from .const import DEFAULT_PORT, DOMAIN, motion_issue_id
 from .coordinator import SafeIntercomCoordinator
-from .http_event import async_register_webhook, async_unregister_webhook
+from .http_event import (
+    HttpEventStats,
+    async_register_webhook,
+    async_unregister_webhook,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,6 +62,8 @@ class SafeIntercomData:
     """RTSP settings read at setup; None if the firmware does not report them."""
     motion: MotionSettings | None = None
     """Motion detection settings read at setup; None if they could not be read."""
+    http_events: HttpEventStats = field(default_factory=HttpEventStats)
+    """Requests received by the call button webhook."""
 
 
 type SafeIntercomConfigEntry = ConfigEntry[SafeIntercomData]

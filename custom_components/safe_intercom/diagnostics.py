@@ -45,4 +45,6 @@ async def async_get_config_entry_diagnostics(
         "rtsp": asdict(data.rtsp) if data.rtsp is not None else None,
         "motion": asdict(data.motion) if data.motion is not None else None,
         "video_coding": video_coding,
+        "stream": data.coordinator.stream_diagnostics(),
+        "http_event": asdict(data.http_events),
     }

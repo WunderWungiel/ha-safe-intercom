@@ -28,6 +28,9 @@ Only the 3-relay controller (`3n`) is supported so far.
 - **Reconfigure:** to change the IP address, port or credentials, use **Reconfigure** in the
   integration's menu. It only accepts the same intercom (checked by MAC address).
 - **Diagnostics:** download them from the device page; credentials, host and MAC are redacted.
+  They also show whether the event stream is connected, the current motion and input state,
+  and how many requests the call button webhook has received (with the last one's method and
+  `event` value), which helps when setting up the HTTP event.
 
 ## Entities
 

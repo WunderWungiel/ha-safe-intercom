@@ -320,9 +320,12 @@ class SafeIntercomClient:
     ) -> AsyncIterator[AlarmEvent]:
         """Yield motion, input and output alarm changes from the push stream.
 
-        `on_connect` is called once the device has accepted the stream, before
-        any event. Returns when the device closes the connection; raises
-        SafeIntercomConnectionError if it cannot be reached or goes silent.
+        `on_connect` is called once, on the first line the device sends (a
+        keepalive comes within 5 s), before any event. HTTP 200 alone proves
+        nothing: errors come back as 200 with a `Request failed` body, which
+        raises SafeIntercomCommandError instead. Returns when the device
+        closes the connection; raises SafeIntercomConnectionError if it
+        cannot be reached or goes silent.
         """
         # Built pre-encoded: yarl would send the `;` separators as `%3B`, while
         # the spec example (§20.1) sends them literally.
@@ -339,10 +342,16 @@ class SafeIntercomClient:
                     raise SafeIntercomConnectionError(
                         f"Unexpected HTTP status {resp.status} from alarm stream"
                     )
-                if on_connect is not None:
-                    on_connect()
+                connected = False
                 async for raw in resp.content:
-                    if event := parse_alarm_event(raw.decode(errors="replace")):
+                    line = raw.decode(errors="replace")
+                    if "Request failed" in line:
+                        raise SafeIntercomCommandError(line.strip())
+                    if not connected:
+                        connected = True
+                        if on_connect is not None:
+                            on_connect()
+                    if event := parse_alarm_event(line):
                         yield event
         except (aiohttp.ClientError, TimeoutError) as err:
             raise SafeIntercomConnectionError(

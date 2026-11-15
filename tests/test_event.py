@@ -217,3 +217,26 @@ async def test_call_button_available_while_controller_fails(
     assert state.state != STATE_UNAVAILABLE
     assert state.state == rang.state
     assert state.last_changed == rang.last_changed
+
+
+async def test_http_event_recorded(
+    hass: HomeAssistant,
+    hass_client_no_auth: ClientSessionGenerator,
+    entry: MockConfigEntry,
+) -> None:
+    """Every webhook request is counted; the last one is kept for diagnostics."""
+    assert entry.runtime_data.http_events.requests == 0
+    assert entry.runtime_data.http_events.last is None
+
+    client = await hass_client_no_auth()
+    await client.get(f"{WEBHOOK_URL}?event=call")
+    await client.post(WEBHOOK_URL, data="event=motion")
+    await hass.async_block_till_done()
+
+    stats = entry.runtime_data.http_events
+    assert stats.requests == 2
+    assert stats.last is not None
+    assert stats.last.method == "POST"
+    assert stats.last.event == "motion"
+    assert stats.last.rang is False
+    assert stats.last.received_at

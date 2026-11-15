@@ -186,6 +186,55 @@ async def test_alarm_stream_subscribes_all_types_and_signals_connect(
     )
 
 
+async def test_alarm_stream_no_connect_signal_without_data(
+    aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient
+) -> None:
+    """An HTTP 200 that closes without a line is not a connection."""
+    aioclient_mock.get(ALARM_URL, text="")
+    connects = []
+
+    events = [
+        e
+        async for e in client.async_alarm_events(on_connect=lambda: connects.append(1))
+    ]
+
+    assert events == []
+    assert connects == []
+
+
+async def test_alarm_stream_signals_connect_once(
+    aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient
+) -> None:
+    """on_connect fires on the first line, before its event, and only once."""
+    aioclient_mock.get(
+        ALARM_URL,
+        text="2012-06-04;20:00:40;SensorOutAlarm;1;0\n"
+        "2012-06-04;20:00:44;SensorOutAlarm;0;0\n",
+    )
+    calls: list[str] = []
+
+    async for _ in client.async_alarm_events(on_connect=lambda: calls.append("c")):
+        calls.append("e")
+
+    assert calls == ["c", "e", "e"]
+
+
+@pytest.mark.parametrize(
+    "body", ["Request failed: bad parameter\n", "Request failed: bad parameter"]
+)
+async def test_alarm_stream_request_failed(
+    aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient, body: str
+) -> None:
+    """An error body sent with HTTP 200 raises and never signals a connection."""
+    aioclient_mock.get(ALARM_URL, text=body)
+    connects = []
+
+    with pytest.raises(SafeIntercomCommandError, match="bad parameter"):
+        async for _ in client.async_alarm_events(on_connect=lambda: connects.append(1)):
+            pass
+    assert connects == []
+
+
 async def test_alarm_stream_yields_input_and_motion_events(
     aioclient_mock: AiohttpClientMocker, client: SafeIntercomClient
 ) -> None:

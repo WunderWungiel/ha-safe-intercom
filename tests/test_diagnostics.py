@@ -128,3 +128,21 @@ async def test_diagnostics_video_coding_error_hides_host(
 
     assert result["video_coding"] == {"error": "SafeIntercomConnectionError"}
     assert HOST not in str(result)
+
+
+async def test_diagnostics_runtime_state(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """The stream state and the webhook's traffic are included."""
+    result = await _diagnostics(hass, hass_client, aioclient_mock)
+
+    assert result["stream"] == {
+        "connected": False,
+        "motion": False,
+        "motion_zones": [],
+        "motion_unzoned": False,
+        "inputs": {},
+    }
+    assert result["http_event"] == {"requests": 0, "last": None}

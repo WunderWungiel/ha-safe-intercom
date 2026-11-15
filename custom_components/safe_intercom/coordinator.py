@@ -6,7 +6,7 @@ import asyncio
 from datetime import timedelta
 import logging
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -20,6 +20,7 @@ from .api import (
     ControllerInfo,
     SafeIntercomAuthError,
     SafeIntercomClient,
+    SafeIntercomCommandError,
     SafeIntercomError,
 )
 from .const import DOMAIN
@@ -100,6 +101,16 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
         """State of the 1-based alarm input; None until its first event."""
         return self._inputs.get(number)
 
+    def stream_diagnostics(self) -> dict[str, Any]:
+        """The pushed state, for diagnostics."""
+        return {
+            "connected": self._stream_connected,
+            "motion": self.motion,
+            "motion_zones": sorted(self._motion_zones),
+            "motion_unzoned": self._motion_unzoned,
+            "inputs": {str(n): on for n, on in sorted(self._inputs.items())},
+        }
+
     def _handle_alarm(self, event: AlarmEvent) -> None:
         """Apply a motion or input event and notify listeners of a change."""
         if event.alarm_type == ALARM_MOTION:
@@ -168,10 +179,12 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
         backoff = STREAM_BACKOFF_MIN
         first = True
         connected_at: float | None = None
+        refusal_logged = False
 
         def on_connect() -> None:
-            nonlocal connected_at
+            nonlocal connected_at, refusal_logged
             connected_at = _monotonic()
+            refusal_logged = False
             if self._stream_lost:
                 _LOGGER.info("Alarm stream from %s connected", self.client.host)
             self._set_stream_connected(True)
@@ -197,6 +210,19 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
                     self._set_stream_connected(False)
                 self.config_entry.async_start_reauth(self.hass)
                 return
+            except SafeIntercomCommandError as err:
+                # The device answered with an error, e.g. a subscription this
+                # firmware refuses. Retrying is unlikely to help, but cheap.
+                reason = str(err)
+                if not refusal_logged:
+                    _LOGGER.warning(
+                        "Alarm stream refused by %s: %s. Relays are only re-read "
+                        "every %d s; motion and alarm inputs stay unavailable",
+                        self.client.host,
+                        reason,
+                        FALLBACK_POLL_INTERVAL.total_seconds(),
+                    )
+                    refusal_logged = True
             except SafeIntercomError as err:
                 reason = str(err)
             if (

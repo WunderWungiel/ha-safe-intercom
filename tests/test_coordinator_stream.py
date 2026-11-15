@@ -12,6 +12,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.safe_intercom.api import (
     AlarmEvent,
     ControllerInfo,
+    SafeIntercomCommandError,
     parse_alarm_event,
 )
 from custom_components.safe_intercom.const import DOMAIN
@@ -178,3 +179,68 @@ async def test_motion_zoned_on_survives_unrelated_off(stream) -> None:
     assert coordinator.motion is True
     await _send(client, _event("MotionDetection;0;0"))
     assert coordinator.motion is False
+
+
+class RejectingClient(FakeClient):
+    """A device that answers the stream with `Request failed`, then accepts it."""
+
+    def __init__(self, rejections: int) -> None:
+        super().__init__()
+        self.rejections = rejections
+
+    async def async_alarm_events(
+        self, on_connect: Callable[[], None] | None = None
+    ) -> AsyncIterator[AlarmEvent]:
+        if self.rejections:
+            self.rejections -= 1
+            raise SafeIntercomCommandError("Request failed: bad parameter")
+        async for event in super().async_alarm_events(on_connect):
+            yield event
+
+
+async def test_rejected_stream_warns_once(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A refused subscription is a warning, once; it never counts as connected."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=MAC, data={})
+    entry.add_to_hass(hass)
+    client = RejectingClient(rejections=3)
+    coordinator = SafeIntercomCoordinator(hass, entry, client)  # type: ignore[arg-type]
+    coordinator.data = CONTROLLER
+    waits: list[float] = []
+
+    async def wait(seconds: float) -> None:
+        waits.append(seconds)
+
+    coordinator._async_stream_wait = wait  # type: ignore[method-assign]
+    states: list[bool] = []
+    coordinator.async_add_listener(lambda: states.append(coordinator.stream_connected))
+    task = asyncio.create_task(coordinator.async_run_event_stream())
+    try:
+        await _settle()
+
+        assert waits == [1, 2, 4]
+        assert states == [True]
+        assert coordinator.stream_connected is True
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert len(warnings) == 1
+        assert "bad parameter" in warnings[0].getMessage()
+        assert "Alarm stream lost" not in caplog.text
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_stream_diagnostics(stream) -> None:
+    """The pushed state is summarised for diagnostics."""
+    coordinator, client, _ = stream
+    await _send(client, _event("MotionDetection;1;1,0"))
+    await _send(client, _event("SensorInAlarm;1;0"))
+
+    assert coordinator.stream_diagnostics() == {
+        "connected": True,
+        "motion": True,
+        "motion_zones": [0, 1],
+        "motion_unzoned": False,
+        "inputs": {"1": True},
+    }

@@ -113,6 +113,10 @@ The HTTP API has no call-button event in the alarm stream. The options are:
   command, up to ~3 s, because the device can lag behind its own command) and whenever
   `alarmchangestate_cgi` (subscribed with `parameter=SensorOutAlarm`) emits a line. The stream
   is only a change *signal*; state always comes from `controller_cgi`.
+- **Stream connection.** The stream counts as connected on its first line (a keepalive comes
+  within 5 s), not on HTTP 200, because errors come back as 200 with a `Request failed` body.
+  Such a line raises `SafeIntercomCommandError`; the coordinator logs one warning and keeps
+  retrying with backoff (motion and inputs stay unavailable meanwhile).
 - **Verified (S06A, firmware 3.1.5.0.7.18.36):** switching a controller relay from the SAFE
   Android app shows up in Home Assistant instantly (4 of 4 tries), so the stream does emit
   `SensorOutAlarm` for the external 3n controller's relays, despite spec §20.1.2 describing it
@@ -135,9 +139,9 @@ The HTTP API has no call-button event in the alarm stream. The options are:
   options flow; the user enters them on the device. A request whose query string (or POST
   body) has `event=call` fires the `ring` event. The event entity is always available while
   loaded (it does not follow the coordinator), so a controller outage cannot replay the last
-  ring to state triggers. Still to check on a real press: the method and URL the device
-  actually sends (the manual's §8.13 examples omit the Request path), and whether HA accepts
-  the device's `HTTP/1.0` request.
+  ring to state triggers. Diagnostics count webhook requests and keep the last one. Still to
+  check on a real press: the method and URL the device actually sends (the manual's §8.13
+  examples omit the Request path), and whether HA accepts the device's `HTTP/1.0` request.
 - Known install: relay 1 (`Output=0`) = wicket strike, relay 2 (`Output=1`) = gate
   pulse, relay 3 (`Output=2`) = gate lights (latching). Use this for manual testing only; never
   hard-code it.
