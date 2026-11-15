@@ -25,6 +25,14 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.network import NoURLAvailableError, get_url
+from homeassistant.helpers.selector import (
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+)
 from homeassistant.util.network import is_ip_address
 import voluptuous as vol
 from yarl import URL
@@ -43,9 +51,7 @@ from .const import (
     DEFAULT_PORT,
     DEFAULT_USERNAME,
     DOMAIN,
-    SUPPORTED_RELAYS,
     enabled_relays,
-    relay_key,
 )
 from .http_event import generate_webhook_id
 
@@ -108,11 +114,29 @@ def _is_supported(controller: ControllerInfo) -> bool:
 
 
 def _controller_schema(controller: ControllerInfo, enabled: list[int]) -> vol.Schema:
-    """One enable checkbox per relay the controller reports."""
+    """A compact checkbox list with one entry per relay the controller has."""
     return vol.Schema(
         {
-            vol.Required(relay_key(relay.number), default=relay.number in enabled): bool
-            for relay in controller.supported_relays
+            vol.Optional(
+                CONF_ENABLED_RELAYS,
+                default=[
+                    str(relay.number)
+                    for relay in controller.supported_relays
+                    if relay.number in enabled
+                ],
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=[
+                        SelectOptionDict(
+                            value=str(relay.number), label=f"Relay {relay.number}"
+                        )
+                        for relay in controller.supported_relays
+                    ],
+                    multiple=True,
+                    mode=SelectSelectorMode.LIST,
+                    translation_key=CONF_ENABLED_RELAYS,
+                )
+            )
         }
     )
 
@@ -128,7 +152,7 @@ def _controller_placeholders(controller: ControllerInfo) -> dict[str, str]:
     }
 
 
-def _http_event_placeholders(
+def _http_event_values(
     hass: HomeAssistant, entry: SafeIntercomConfigEntry
 ) -> dict[str, str]:
     """What to enter in the intercom's HTTP event settings for the call button.
@@ -157,15 +181,28 @@ def _http_event_placeholders(
     else:
         protocol, host = "HTTP", "<Home Assistant IP>:8123"
     return {
-        "ha_protocol": protocol,
-        "ha_host": host,
-        "webhook_path": webhook.async_generate_path(entry.data[CONF_WEBHOOK_ID]),
+        "protocol": protocol,
+        "host": host,
+        "request": webhook.async_generate_path(entry.data[CONF_WEBHOOK_ID]),
+        "method": "GET",
         "call_parameter": f"{HTTP_EVENT_KEY}={HTTP_EVENT_CALL}",
     }
 
 
+def _http_event_schema(values: dict[str, str]) -> vol.Schema:
+    """Read-only fields the user copies into the intercom's web interface."""
+    return vol.Schema(
+        {
+            vol.Optional(key, description={"suggested_value": value}): TextSelector(
+                TextSelectorConfig(read_only=True)
+            )
+            for key, value in values.items()
+        }
+    )
+
+
 def _enabled_from_input(user_input: dict[str, Any]) -> list[int]:
-    return [n for n in SUPPORTED_RELAYS if user_input.get(relay_key(n))]
+    return sorted(int(n) for n in user_input.get(CONF_ENABLED_RELAYS, []))
 
 
 class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -237,7 +274,10 @@ class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="controller",
-            data_schema=_controller_schema(self._controller, list(SUPPORTED_RELAYS)),
+            data_schema=_controller_schema(
+                self._controller,
+                [relay.number for relay in self._controller.supported_relays],
+            ),
             description_placeholders=_controller_placeholders(self._controller),
         )
 
@@ -335,13 +375,17 @@ class SafeIntercomConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class SafeIntercomOptionsFlow(OptionsFlowWithReload):
-    """Change which controller relays are exposed."""
-
-    def __init__(self) -> None:
-        """Initialize the options flow."""
-        self._controller: ControllerInfo | None = None
+    """Choose the exposed relays, or look up the call button settings."""
 
     async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the options menu."""
+        return self.async_show_menu(
+            step_id="init", menu_options=["relays", "call_button"]
+        )
+
+    async def async_step_relays(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Show the relay selection, with live info from the device."""
@@ -358,25 +402,35 @@ class SafeIntercomOptionsFlow(OptionsFlowWithReload):
         if entry.state is not ConfigEntryState.LOADED:
             return self.async_abort(reason="not_loaded")
         try:
-            self._controller = await entry.runtime_data.client.async_get_controller()
+            controller = await entry.runtime_data.client.async_get_controller()
         except SafeIntercomError:
             return self.async_abort(reason="cannot_connect")
-        if not _is_supported(self._controller):
+        if not _is_supported(controller):
             return self.async_abort(
                 reason="unsupported_controller",
-                description_placeholders={
-                    "controller_type": self._controller.type,
-                    **_http_event_placeholders(self.hass, entry),
-                },
+                description_placeholders={"controller_type": controller.type},
             )
 
         return self.async_show_form(
-            step_id="init",
-            data_schema=_controller_schema(
-                self._controller, enabled_relays(entry.options)
+            step_id="relays",
+            data_schema=_controller_schema(controller, enabled_relays(entry.options)),
+            description_placeholders=_controller_placeholders(controller),
+        )
+
+    async def async_step_call_button(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show what to enter in the intercom's HTTP event settings.
+
+        Nothing here is stored: submitting keeps the options unchanged, which
+        closes the dialog without a reload.
+        """
+        if user_input is not None:
+            return self.async_create_entry(data=dict(self.config_entry.options))
+
+        return self.async_show_form(
+            step_id="call_button",
+            data_schema=_http_event_schema(
+                _http_event_values(self.hass, self.config_entry)
             ),
-            description_placeholders={
-                **_controller_placeholders(self._controller),
-                **_http_event_placeholders(self.hass, entry),
-            },
         )

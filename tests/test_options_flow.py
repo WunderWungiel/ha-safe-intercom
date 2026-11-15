@@ -77,6 +77,24 @@ async def _setup(
     await hass.async_block_till_done()
 
 
+async def _open(hass: HomeAssistant, entry: MockConfigEntry, step: str) -> dict:
+    """Open the options menu and pick `step`."""
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.MENU
+    assert result["menu_options"] == ["relays", "call_button"]
+    return await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": step}
+    )
+
+
+def _call_button_values(result: dict) -> dict[str, str]:
+    """Return the read-only values shown on the call button form."""
+    return {
+        str(key): key.description["suggested_value"]
+        for key in result["data_schema"].schema
+    }
+
+
 async def test_options_flow_changes_relays_and_reloads(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
 ) -> None:
@@ -84,20 +102,17 @@ async def test_options_flow_changes_relays_and_reloads(
     await _setup(hass, aioclient_mock, entry)
     old_data = entry.runtime_data
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _open(hass, entry, "relays")
     assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "init"
+    assert result["step_id"] == "relays"
     assert result["description_placeholders"]["relay_delays"] == (
         "1: 2 s, 2: 2 s, 3: 0 s"
     )
-    assert {key: key.default() for key in result["data_schema"].schema} == {
-        "relay_1": True,
-        "relay_2": False,
-        "relay_3": True,
-    }
+    (key,) = result["data_schema"].schema
+    assert key.default() == ["1", "3"]
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"relay_1": False, "relay_2": True, "relay_3": True}
+        result["flow_id"], {CONF_ENABLED_RELAYS: ["3", "2"]}
     )
     await hass.async_block_till_done()
 
@@ -111,9 +126,18 @@ async def test_options_flow_entry_not_loaded(
     hass: HomeAssistant, entry: MockConfigEntry
 ) -> None:
     """Without a loaded entry there is no live controller info to show."""
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _open(hass, entry, "relays")
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "not_loaded"
+
+
+async def test_call_button_works_without_loaded_entry(
+    hass: HomeAssistant, entry: MockConfigEntry
+) -> None:
+    """The call button settings don't need the device."""
+    result = await _open(hass, entry, "call_button")
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "call_button"
 
 
 @pytest.mark.parametrize(
@@ -135,7 +159,7 @@ async def test_options_flow_aborts(
     aioclient_mock.clear_requests()
     aioclient_mock.get(CONTROLLER_URL, **mock_kwargs)
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _open(hass, entry, "relays")
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == reason
 
@@ -147,14 +171,23 @@ async def test_options_shows_http_event_settings(
     hass.config.internal_url = "http://192.0.2.50:8123"
     await _setup(hass, aioclient_mock, entry)
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _open(hass, entry, "call_button")
 
-    placeholders = result["description_placeholders"]
-    assert placeholders["ha_protocol"] == "HTTP"
-    assert placeholders["ha_host"] == "192.0.2.50:8123"
-    assert placeholders["webhook_path"] == f"/api/webhook/{WEBHOOK_ID}"
-    assert placeholders["call_parameter"] == "event=call"
-    assert placeholders["controller_type"] == "3n"
+    assert _call_button_values(result) == {
+        "protocol": "HTTP",
+        "host": "192.0.2.50:8123",
+        "request": f"/api/webhook/{WEBHOOK_ID}",
+        "method": "GET",
+        "call_parameter": "event=call",
+    }
+
+    # Nothing is stored, so submitting keeps the options and does not reload.
+    old_data = entry.runtime_data
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {})
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options == {CONF_ENABLED_RELAYS: [1, 3]}
+    assert entry.runtime_data is old_data
 
 
 async def test_options_http_event_settings_https(
@@ -168,10 +201,10 @@ async def test_options_http_event_settings_https(
     await _setup(hass, aioclient_mock, entry)
     hass.config.api = None
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _open(hass, entry, "call_button")
 
-    assert result["description_placeholders"]["ha_protocol"] == "HTTPS"
-    assert result["description_placeholders"]["ha_host"] == "ha.local:443"
+    assert _call_button_values(result)["protocol"] == "HTTPS"
+    assert _call_button_values(result)["host"] == "ha.local:443"
 
 
 @pytest.mark.parametrize(
@@ -194,10 +227,10 @@ async def test_options_prefers_local_ip_over_host_name(
     await _setup(hass, aioclient_mock, entry)
     hass.config.api = ApiConfig("192.0.2.60", "0.0.0.0", 8123, use_ssl)
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _open(hass, entry, "call_button")
 
-    assert result["description_placeholders"]["ha_protocol"] == protocol
-    assert result["description_placeholders"]["ha_host"] == "192.0.2.60:8123"
+    assert _call_button_values(result)["protocol"] == protocol
+    assert _call_button_values(result)["host"] == "192.0.2.60:8123"
 
 
 async def test_options_keeps_ip_internal_url(
@@ -208,9 +241,9 @@ async def test_options_keeps_ip_internal_url(
     await _setup(hass, aioclient_mock, entry)
     hass.config.api = ApiConfig("192.0.2.60", "0.0.0.0", 8123, False)
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _open(hass, entry, "call_button")
 
-    assert result["description_placeholders"]["ha_host"] == "192.0.2.50:8123"
+    assert _call_button_values(result)["host"] == "192.0.2.50:8123"
 
 
 async def test_options_without_url(
@@ -224,24 +257,8 @@ async def test_options_without_url(
         "custom_components.safe_intercom.config_flow.get_url",
         side_effect=NoURLAvailableError,
     ):
-        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await _open(hass, entry, "call_button")
 
     assert result["type"] is FlowResultType.FORM
-    assert result["description_placeholders"]["ha_protocol"] == "HTTP"
-    assert result["description_placeholders"]["ha_host"] == "<Home Assistant IP>:8123"
-
-
-async def test_unsupported_controller_still_shows_http_event_settings(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entry: MockConfigEntry
-) -> None:
-    """The call button works with any controller, so its settings are shown."""
-    await _setup(hass, aioclient_mock, entry)
-    aioclient_mock.clear_requests()
-    aioclient_mock.get(CONTROLLER_URL, text=controller_response(controller_type="9"))
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-
-    assert result["reason"] == "unsupported_controller"
-    assert result["description_placeholders"]["webhook_path"] == (
-        f"/api/webhook/{WEBHOOK_ID}"
-    )
+    assert _call_button_values(result)["protocol"] == "HTTP"
+    assert _call_button_values(result)["host"] == "<Home Assistant IP>:8123"

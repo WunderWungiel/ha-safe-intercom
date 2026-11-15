@@ -148,8 +148,8 @@ The HTTP API has no call-button event in the alarm stream. The options are:
   form (or the encoded one) delivers all three types, the motion line format, and how many
   `SensorInAlarm` inputs exist (3 assumed from Modbus registers 106–108).
 - **Call button via HTTP event (not yet verified).** The integration registers a local-only
-  webhook per entry (`entry.data["webhook_id"]`) and shows the HTTP event settings in the
-  options flow; the user enters them on the device. A request whose query string (or POST
+  webhook per entry (`entry.data["webhook_id"]`) and shows the HTTP event settings as read-only
+  fields in the options flow's "Call button setup" step; the user enters them on the device. A request whose query string (or POST
   body) has `event=call` fires the `ring` event. The event entity is always available while
   loaded (it does not follow the coordinator), so a controller outage cannot replay the last
   ring to state triggers. Diagnostics count webhook requests and keep the last one.

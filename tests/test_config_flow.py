@@ -72,6 +72,13 @@ async def _start_flow(hass: HomeAssistant) -> str:
     return result["flow_id"]
 
 
+def _relay_choices(result: dict) -> tuple[list[str], list[str]]:
+    """Return the offered relays and the preselected ones of a relay form."""
+    (key,) = result["data_schema"].schema
+    selector = result["data_schema"].schema[key]
+    return [o["value"] for o in selector.config["options"]], key.default()
+
+
 async def test_user_flow_creates_entry(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
@@ -87,14 +94,10 @@ async def test_user_flow_creates_entry(
         "relay_delays": "1: 2 s, 2: 2 s, 3: 0 s",
     }
     # All relays are offered and enabled by default.
-    assert {key: key.default() for key in result["data_schema"].schema} == {
-        "relay_1": True,
-        "relay_2": True,
-        "relay_3": True,
-    }
+    assert _relay_choices(result) == (["1", "2", "3"], ["1", "2", "3"])
 
     result = await hass.config_entries.flow.async_configure(
-        flow_id, {"relay_1": True, "relay_2": False, "relay_3": True}
+        flow_id, {CONF_ENABLED_RELAYS: ["3", "1"]}
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -209,9 +212,11 @@ async def test_user_flow_one_channel_controller(
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "controller"
     assert result["description_placeholders"]["relay_delays"] == "1: 2 s"
-    assert [str(key) for key in result["data_schema"].schema] == ["relay_1"]
+    assert _relay_choices(result) == (["1"], ["1"])
 
-    result = await hass.config_entries.flow.async_configure(flow_id, {"relay_1": True})
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_ENABLED_RELAYS: ["1"]}
+    )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["options"] == {CONF_ENABLED_RELAYS: [1]}

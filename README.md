@@ -85,11 +85,11 @@ Home Assistant `config/custom_components/` folder and restart Home Assistant.
 Or go to Settings → Devices & services → **Add integration** → **SAFE Intercom**.
 
 1. Enter the intercom's IP address, HTTP port and credentials.
-2. On the **Controller relays** step, choose which relays to add. The step shows the controller
+2. On the **Relays** step, choose which relays to add. The step shows the controller
    type and each relay's delay as set in the intercom's web interface.
 
-You can change the relay selection later with **Configure** on the integration's card.
-Configure also shows the settings for the call button (see [Call button](#call-button)).
+**Configure** on the integration's card opens a menu: **Relays** changes the relay selection,
+**Call button setup** shows the settings for the call button (see [Call button](#call-button)).
 
 - **Reauthentication:** if the intercom's password changes, Home Assistant asks for the new
   credentials.
@@ -129,10 +129,11 @@ intercom's call button. The intercom reports presses with an *HTTP event* sent t
 Assistant webhook, which you set up once in the intercom's web interface (the integration
 never changes device settings itself):
 
-1. Open **Configure** on the integration's card. The description lists the exact values.
+1. Open **Configure** on the integration's card and pick **Call button setup**. It lists the
+   exact values to enter.
 2. In the intercom's web interface, open Network settings → **HTTP event**, enable it and enter
    the protocol, host name (`<Home Assistant IP>:<port>`) and request (`/api/webhook/…`)
-   shown in Configure. Method **GET**, authentication off.
+   shown there. Method **GET**, authentication off.
 3. In Alarm settings → **Call button**, tick HTTP event and enter `event=call`.
 
 > [!WARNING]

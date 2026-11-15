@@ -14,12 +14,13 @@
         }
       },
       "controller": {
-        "title": "Controller relays",
-        "description": "Controller type: {controller_type}\n\nRelay delays: {relay_delays}\n\nA delay of 0 s means the relay latches until switched off; otherwise it switches off by itself after the delay. Delays are set in the intercom's web interface.\n\nChoose which relays to add to Home Assistant. You can change this later with Configure.",
+        "title": "Relays",
+        "description": "Controller {controller_type}. Choose the relays to add to Home Assistant.",
         "data": {
-          "relay_1": "Relay 1",
-          "relay_2": "Relay 2",
-          "relay_3": "Relay 3"
+          "enabled_relays": "Relays"
+        },
+        "data_description": {
+          "enabled_relays": "Delays: {relay_delays}. A relay with 0 s stays on until switched off; others switch off by themselves. Delays are set in the intercom's web interface."
         }
       },
       "reauth_confirm": {
@@ -64,19 +65,43 @@
   "options": {
     "step": {
       "init": {
-        "title": "Controller relays",
-        "description": "Controller type: {controller_type}\n\nRelay delays: {relay_delays}\n\nA delay of 0 s means the relay latches until switched off; otherwise it switches off by itself after the delay. Delays are set in the intercom's web interface.\n\nChoose which relays to add to Home Assistant.\n\n**Call button:** in the intercom's web interface, open Network settings → HTTP event, enable it and set Protocol **{ha_protocol}**, Host name **{ha_host}**, Request **{webhook_path}**, Method **GET**, authentication off. Then in Alarm settings → Call button, tick HTTP event and enter **{call_parameter}**. Keep the request path private. If the intercom can't reach that host, enter Home Assistant's IP address instead: the intercom may not resolve host names.",
+        "title": "Options",
+        "menu_options": {
+          "relays": "Relays",
+          "call_button": "Call button setup"
+        }
+      },
+      "relays": {
+        "title": "Relays",
+        "description": "Controller {controller_type}. Choose the relays to add to Home Assistant.",
         "data": {
-          "relay_1": "Relay 1",
-          "relay_2": "Relay 2",
-          "relay_3": "Relay 3"
+          "enabled_relays": "Relays"
+        },
+        "data_description": {
+          "enabled_relays": "Delays: {relay_delays}. A relay with 0 s stays on until switched off; others switch off by themselves. Delays are set in the intercom's web interface."
+        }
+      },
+      "call_button": {
+        "title": "Call button setup",
+        "description": "In the intercom's web interface, open **Network settings → HTTP event**, turn it on, enter these values and leave authentication off. Then in **Alarm settings → Call button**, tick **HTTP event** and enter the call parameter.",
+        "data": {
+          "protocol": "Protocol",
+          "host": "Host name",
+          "request": "Request",
+          "method": "Method",
+          "call_parameter": "Call parameter"
+        },
+        "data_description": {
+          "host": "If the intercom can't reach this host, enter Home Assistant's IP address.",
+          "request": "Keep it private: anyone who knows it can make the call button ring.",
+          "call_parameter": "Goes in Alarm settings → Call button."
         }
       }
     },
     "abort": {
       "cannot_connect": "Failed to connect",
       "not_loaded": "The intercom is not loaded. Make sure it is reachable and try again.",
-      "unsupported_controller": "Controller type {controller_type} is not supported yet.\n\n**Call button:** in the intercom's web interface, open Network settings → HTTP event, enable it and set Protocol **{ha_protocol}**, Host name **{ha_host}**, Request **{webhook_path}**, Method **GET**, authentication off. Then in Alarm settings → Call button, tick HTTP event and enter **{call_parameter}**. Keep the request path private. If the intercom can't reach that host, enter Home Assistant's IP address instead: the intercom may not resolve host names."
+      "unsupported_controller": "Controller type {controller_type} is not supported yet, so there are no relays to choose. The call button still works."
     }
   },
   "entity": {
@@ -126,6 +151,15 @@
     "motion_detection_off": {
       "title": "Motion detection is off on {name}",
       "description": "Motion detection is turned off in the intercom's web interface, so the Motion sensor will never turn on. Turn it on in Alarm settings → Motion detection, then reload the integration. If you don't need motion, disable the Motion sensor instead; this warning then goes away."
+    }
+  },
+  "selector": {
+    "enabled_relays": {
+      "options": {
+        "1": "Relay 1",
+        "2": "Relay 2",
+        "3": "Relay 3"
+      }
     }
   }
 }
