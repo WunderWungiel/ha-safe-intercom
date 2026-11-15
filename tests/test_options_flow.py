@@ -87,7 +87,9 @@ async def test_options_flow_changes_relays_and_reloads(
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "init"
-    assert result["description_placeholders"]["delay_3"] == "0"
+    assert result["description_placeholders"]["relay_delays"] == (
+        "1: 2 s, 2: 2 s, 3: 0 s"
+    )
     assert {key: key.default() for key in result["data_schema"].schema} == {
         "relay_1": True,
         "relay_2": False,
@@ -118,7 +120,7 @@ async def test_options_flow_entry_not_loaded(
     ("mock_kwargs", "reason"),
     [
         ({"exc": aiohttp.ClientConnectionError()}, "cannot_connect"),
-        ({"text": controller_response(controller_type="1")}, "unsupported_controller"),
+        ({"text": controller_response(controller_type="9")}, "unsupported_controller"),
     ],
 )
 async def test_options_flow_aborts(
@@ -235,7 +237,7 @@ async def test_unsupported_controller_still_shows_http_event_settings(
     """The call button works with any controller, so its settings are shown."""
     await _setup(hass, aioclient_mock, entry)
     aioclient_mock.clear_requests()
-    aioclient_mock.get(CONTROLLER_URL, text=controller_response(controller_type="1"))
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response(controller_type="9"))
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
 

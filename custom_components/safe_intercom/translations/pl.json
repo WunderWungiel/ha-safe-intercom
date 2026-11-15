@@ -15,7 +15,7 @@
       },
       "controller": {
         "title": "Przekaźniki kontrolera",
-        "description": "Typ kontrolera: {controller_type}\n\nPrzekaźnik 1: czas trwania {delay_1} s\nPrzekaźnik 2: czas trwania {delay_2} s\nPrzekaźnik 3: czas trwania {delay_3} s\n\nCzas 0 s oznacza, że przekaźnik pozostaje załączony do czasu wyłączenia; w przeciwnym razie wyłącza się sam po upływie tego czasu. Czas trwania ustawia się w interfejsie WWW bramofonu.\n\nWybierz przekaźniki, które mają zostać dodane do Home Assistant. Możesz to zmienić później w opcji Konfiguruj.",
+        "description": "Typ kontrolera: {controller_type}\n\nCzas trwania przekaźników: {relay_delays}\n\nCzas 0 s oznacza, że przekaźnik pozostaje załączony do czasu wyłączenia; w przeciwnym razie wyłącza się sam po upływie tego czasu. Czas trwania ustawia się w interfejsie WWW bramofonu.\n\nWybierz przekaźniki, które mają zostać dodane do Home Assistant. Możesz to zmienić później w opcji Konfiguruj.",
         "data": {
           "relay_1": "Przekaźnik 1",
           "relay_2": "Przekaźnik 2",
@@ -65,7 +65,7 @@
     "step": {
       "init": {
         "title": "Przekaźniki kontrolera",
-        "description": "Typ kontrolera: {controller_type}\n\nPrzekaźnik 1: czas trwania {delay_1} s\nPrzekaźnik 2: czas trwania {delay_2} s\nPrzekaźnik 3: czas trwania {delay_3} s\n\nCzas 0 s oznacza, że przekaźnik pozostaje załączony do czasu wyłączenia; w przeciwnym razie wyłącza się sam po upływie tego czasu. Czas trwania ustawia się w interfejsie WWW bramofonu.\n\nWybierz przekaźniki, które mają zostać dodane do Home Assistant.\n\n**Przycisk wywołania:** w interfejsie WWW bramofonu otwórz Ustawienia sieci → Zdarzenie HTTP, włącz je i ustaw Protokół **{ha_protocol}**, Nazwa hosta **{ha_host}**, Żądanie **{webhook_path}**, Metoda **GET**, uwierzytelnianie wyłączone. Następnie w Ustawienia alarmu → Przycisk wywołania zaznacz Zdarzenie HTTP i wpisz **{call_parameter}**. Nie udostępniaj ścieżki żądania. Jeśli bramofon nie może połączyć się z tym hostem, wpisz zamiast niego adres IP Home Assistant: bramofon może nie rozpoznawać nazw hostów.",
+        "description": "Typ kontrolera: {controller_type}\n\nCzas trwania przekaźników: {relay_delays}\n\nCzas 0 s oznacza, że przekaźnik pozostaje załączony do czasu wyłączenia; w przeciwnym razie wyłącza się sam po upływie tego czasu. Czas trwania ustawia się w interfejsie WWW bramofonu.\n\nWybierz przekaźniki, które mają zostać dodane do Home Assistant.\n\n**Przycisk wywołania:** w interfejsie WWW bramofonu otwórz Ustawienia sieci → Zdarzenie HTTP, włącz je i ustaw Protokół **{ha_protocol}**, Nazwa hosta **{ha_host}**, Żądanie **{webhook_path}**, Metoda **GET**, uwierzytelnianie wyłączone. Następnie w Ustawienia alarmu → Przycisk wywołania zaznacz Zdarzenie HTTP i wpisz **{call_parameter}**. Nie udostępniaj ścieżki żądania. Jeśli bramofon nie może połączyć się z tym hostem, wpisz zamiast niego adres IP Home Assistant: bramofon może nie rozpoznawać nazw hostów.",
         "data": {
           "relay_1": "Przekaźnik 1",
           "relay_2": "Przekaźnik 2",

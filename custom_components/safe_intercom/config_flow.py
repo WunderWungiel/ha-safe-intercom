@@ -30,7 +30,6 @@ import voluptuous as vol
 from yarl import URL
 
 from .api import (
-    CONTROLLER_TYPE_3N,
     HTTP_EVENT_CALL,
     HTTP_EVENT_KEY,
     ControllerInfo,
@@ -104,7 +103,7 @@ def _error_key(err: Exception) -> str:
 
 def _is_supported(controller: ControllerInfo) -> bool:
     """Return whether the integration knows how to set up this controller."""
-    return controller.type == CONTROLLER_TYPE_3N
+    return bool(controller.supported_relays)
 
 
 def _controller_schema(controller: ControllerInfo, enabled: list[int]) -> vol.Schema:
@@ -112,19 +111,20 @@ def _controller_schema(controller: ControllerInfo, enabled: list[int]) -> vol.Sc
     return vol.Schema(
         {
             vol.Required(relay_key(relay.number), default=relay.number in enabled): bool
-            for relay in controller.relays
-            if relay.number in SUPPORTED_RELAYS
+            for relay in controller.supported_relays
         }
     )
 
 
 def _controller_placeholders(controller: ControllerInfo) -> dict[str, str]:
     """Read-only info shown in the step description."""
-    placeholders = {"controller_type": controller.type}
-    for number in SUPPORTED_RELAYS:
-        relay = controller.relay(number)
-        placeholders[f"delay_{number}"] = f"{relay.delay:g}" if relay else "?"
-    return placeholders
+    return {
+        "controller_type": controller.type,
+        "relay_delays": ", ".join(
+            f"{relay.number}: {relay.delay:g} s"
+            for relay in controller.supported_relays
+        ),
+    }
 
 
 def _http_event_placeholders(

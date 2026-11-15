@@ -94,10 +94,23 @@ The HTTP API has no call-button event in the alarm stream. The options are:
   PlaySound=close
   ```
 
-  (one `key=value` per line). `Type=3n` is the 3-relay controller (spec says `1`/`3`). `OutputN`
-  meaning is unknown and ignored. `CloseByCallN` presumably maps to "trigger by call button"
-  (web UI §11), `CloseByFaceN`/`CloseByNightN` are undocumented. `PlaySound` is the
+  (one `key=value` per line). `OutputN` meaning is unknown and ignored. `CloseByCallN` presumably
+  maps to "trigger by call button" (web UI §11), `CloseByFaceN` to "facial recognition" (Beward
+  DS06M manual §11), `CloseByNightN` is undocumented. `PlaySound` is the
   "door opening sound" option. Flags use `open` = on, `close` = off.
+- **Controller types** (`CONTROLLER_RELAYS` in `api.py`; SAFE intercoms are rebranded Beward
+  DS06 units, so the Beward DS06M(P) operation manual §11 applies too):
+
+  | `Type` | Controller | Relays | Source |
+  |---|---|---|---|
+  | `3n` | NC311P (paired with its LINK button) | 3 | verified (S06A) |
+  | `3` | wired 3-channel, S03P(C1) | 3 | spec §22, unverified |
+  | `1` | 1-channel, NC103/NC103P | 1 | spec §22, unverified |
+
+  The relay count comes from this table, never from the keys present: the spec's `Type=1`
+  example still lists `Delay1..3`. Unknown types expose no relays. Only the NC311P supports
+  `DelayN=0` (latching) per both manuals; Beward documents NC311P delays of 0.1–3600 s, so
+  `DelayN` is parsed as a float.
 - Relay indexing: `alarmout_cgi` `Output` is **0-based**, `controller_cgi` keys are **1-based**
   (`Output=2` ↔ `Status3`).
 - `Status=1` energises the relay (on/pulse), `Status=0` releases it.

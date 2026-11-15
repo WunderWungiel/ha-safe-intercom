@@ -164,12 +164,41 @@ async def test_unsupported_controller_has_no_switches(
     aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
     aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
     aioclient_mock.get(MOTION_URL, text=motion_response())
-    aioclient_mock.get(CONTROLLER_URL, text=controller_response(controller_type="1"))
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response(controller_type="9"))
     aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
     assert hass.states.async_entity_ids(SWITCH_DOMAIN) == []
+
+
+async def test_one_channel_controller_has_one_switch(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A 1-channel controller gets relay 1 only, even with all relays enabled."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Intercom",
+        unique_id=MAC,
+        data={
+            CONF_HOST: HOST,
+            CONF_PORT: 80,
+            CONF_USERNAME: "admin",
+            CONF_PASSWORD: "secret",
+        },
+        options={CONF_ENABLED_RELAYS: [1, 2, 3]},
+    )
+    entry.add_to_hass(hass)
+    aioclient_mock.get(NETWORK_URL, text=NETWORK_RESPONSE)
+    aioclient_mock.get(SYSTEMINFO_URL, text=SYSTEMINFO_RESPONSE)
+    aioclient_mock.get(RTSP_URL, text=RTSP_RESPONSE)
+    aioclient_mock.get(MOTION_URL, text=motion_response())
+    aioclient_mock.get(CONTROLLER_URL, text=controller_response(controller_type="1"))
+    aioclient_mock.get(ALARM_URL, side_effect=hanging_stream)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert hass.states.async_entity_ids(SWITCH_DOMAIN) == [RELAY_1]
 
 
 async def test_latching_relay_on_off(

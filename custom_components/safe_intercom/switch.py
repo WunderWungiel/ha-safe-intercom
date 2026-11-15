@@ -18,11 +18,10 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 
 from . import SafeIntercomConfigEntry
-from .api import CONTROLLER_TYPE_3N, RelayInfo, SafeIntercomError
+from .api import RelayInfo, SafeIntercomError
 from .const import (
     DOMAIN,
     RELAY_KEY_PREFIX,
-    SUPPORTED_RELAYS,
     enabled_relays,
     relay_key,
 )
@@ -44,9 +43,9 @@ async def async_setup_entry(
     """Set up a switch per enabled controller relay."""
     data = entry.runtime_data
     controller = data.coordinator.data
-    enabled = set(enabled_relays(entry.options))
-    if controller.type != CONTROLLER_TYPE_3N:
-        enabled.clear()
+    enabled = set(enabled_relays(entry.options)) & {
+        relay.number for relay in controller.supported_relays
+    }
 
     # Drop entities of relays the user has since disabled, so they do not
     # linger as orphaned "unavailable" entities.
@@ -62,8 +61,8 @@ async def async_setup_entry(
 
     async_add_entities(
         SafeIntercomRelaySwitch(data.coordinator, relay.number)
-        for relay in controller.relays
-        if relay.number in enabled and relay.number in SUPPORTED_RELAYS
+        for relay in controller.supported_relays
+        if relay.number in enabled
     )
 
 

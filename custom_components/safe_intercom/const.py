@@ -16,7 +16,7 @@ RELAY_KEY_PREFIX: Final = "relay_"
 """Prefix of relay keys, used in unique IDs and the relay selection form."""
 
 SUPPORTED_RELAYS: Final = (1, 2, 3)
-"""Relays of the 3n controller (the only controller type supported so far)."""
+"""All relay numbers a controller can have; `CONTROLLER_RELAYS` sets each type."""
 
 SUPPORTED_INPUTS: Final = (1, 2, 3)
 """Alarm inputs, 1-based; three per Modbus registers 106-108 (unverified)."""

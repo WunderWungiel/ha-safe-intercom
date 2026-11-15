@@ -84,9 +84,7 @@ async def test_user_flow_creates_entry(
     assert result["step_id"] == "controller"
     assert result["description_placeholders"] == {
         "controller_type": "3n",
-        "delay_1": "2",
-        "delay_2": "2",
-        "delay_3": "0",
+        "relay_delays": "1: 2 s, 2: 2 s, 3: 0 s",
     }
     # All relays are offered and enabled by default.
     assert {key: key.default() for key in result["data_schema"].schema} == {
@@ -189,13 +187,32 @@ async def test_user_flow_unsupported_controller(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     """Unknown controller types skip the relay step and enable nothing."""
-    _mock_device(aioclient_mock, controller_type="1")
+    _mock_device(aioclient_mock, controller_type="9")
     flow_id = await _start_flow(hass)
 
     result = await hass.config_entries.flow.async_configure(flow_id, USER_INPUT)
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["options"] == {CONF_ENABLED_RELAYS: []}
+
+
+async def test_user_flow_one_channel_controller(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A 1-channel controller offers relay 1 only, despite Delay2/3 keys."""
+    _mock_device(aioclient_mock, controller_type="1")
+    flow_id = await _start_flow(hass)
+
+    result = await hass.config_entries.flow.async_configure(flow_id, USER_INPUT)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "controller"
+    assert result["description_placeholders"]["relay_delays"] == "1: 2 s"
+    assert [str(key) for key in result["data_schema"].schema] == ["relay_1"]
+
+    result = await hass.config_entries.flow.async_configure(flow_id, {"relay_1": True})
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["options"] == {CONF_ENABLED_RELAYS: [1]}
 
 
 async def test_user_flow_already_configured_updates_host(

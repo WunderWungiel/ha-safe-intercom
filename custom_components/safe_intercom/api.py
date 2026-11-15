@@ -53,9 +53,6 @@ class SafeIntercomCommandError(SafeIntercomError):
     """The device answered but refused a command (`Request failed:...`)."""
 
 
-CONTROLLER_TYPE_3N = "3n"
-"""Controller type reported by current firmware for the 3-relay controller."""
-
 CONTROLLER_RELAYS: dict[str, int] = {"1": 1, "3": 3, "3n": 3}
 """Relay count per `controller_cgi` `Type`.
 
