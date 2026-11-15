@@ -37,6 +37,6 @@ Sources: API spec §22, SAFE web UI manual ch. 11, Beward DS06M(P) Operation Use
 
 ## Calls made by the builder
 
-- Existing entries with type `1`/`3` (set up without the relay step) get their relays, all
-  enabled by default, after the update; users can turn them off via Configure.
+- Existing entries with type `1`/`3` were created with `enabled_relays: []` (the flow skipped
+  the relay step), so they keep no switches until the user picks relays via Configure.
 - `Type` is matched exactly (`3N`, `3 ` are unknown).
