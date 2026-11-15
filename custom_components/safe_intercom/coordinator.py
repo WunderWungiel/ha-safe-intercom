@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import timedelta
 import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -58,7 +59,9 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
     The controller is polled every 30 s as a safety net; also refreshed after
     commands and whenever the device's alarm stream reports an output change.
     Motion and alarm inputs come only from the stream; they are forgotten
-    whenever it disconnects, since "off" lines may have been missed.
+    whenever it disconnects, since "off" lines may have been missed. Changes
+    to them notify only stream listeners (`async_add_stream_listener`), so a
+    busy motion zone does not rewrite every entity's state.
     """
 
     config_entry: SafeIntercomConfigEntry
@@ -86,6 +89,7 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
         # `off` may name zones, and would never clear a stand-in zone.
         self._motion_unzoned = False
         self._inputs: dict[int, bool] = {}
+        self._stream_listeners: list[Callable[[], None]] = []
 
     @property
     def stream_connected(self) -> bool:
@@ -100,6 +104,24 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
     def input_state(self, number: int) -> bool | None:
         """State of the 1-based alarm input; None until its first event."""
         return self._inputs.get(number)
+
+    @callback
+    def async_add_stream_listener(
+        self, update_callback: Callable[[], None]
+    ) -> CALLBACK_TYPE:
+        """Listen for changes to the stream state, motion and inputs."""
+        self._stream_listeners.append(update_callback)
+
+        @callback
+        def remove() -> None:
+            self._stream_listeners.remove(update_callback)
+
+        return remove
+
+    @callback
+    def _async_update_stream_listeners(self) -> None:
+        for update_callback in list(self._stream_listeners):
+            update_callback()
 
     def stream_diagnostics(self) -> dict[str, Any]:
         """The pushed state, for diagnostics."""
@@ -135,7 +157,7 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
         else:
             return
         if changed:
-            self.async_update_listeners()
+            self._async_update_stream_listeners()
 
     def _set_stream_connected(self, connected: bool) -> None:
         """Track the stream state; a disconnect forgets the pushed state."""
@@ -144,7 +166,7 @@ class SafeIntercomCoordinator(DataUpdateCoordinator[ControllerInfo]):
             self._motion_zones.clear()
             self._motion_unzoned = False
             self._inputs.clear()
-        self.async_update_listeners()
+        self._async_update_stream_listeners()
 
     async def _async_update_data(self) -> ControllerInfo:
         """Fetch the controller state."""

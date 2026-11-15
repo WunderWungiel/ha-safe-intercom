@@ -28,6 +28,10 @@
         "data": {
           "username": "Nazwa użytkownika",
           "password": "Hasło"
+        },
+        "data_description": {
+          "username": "Użytkownik interfejsu WWW bramofonu. Ustawienia RTSP i detekcji ruchu wymagają uprawnień administratora.",
+          "password": "Hasło tego użytkownika."
         }
       },
       "reconfigure": {

@@ -5,7 +5,7 @@ from __future__ import annotations
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SafeIntercomConfigEntry
 from .const import signal_call
@@ -21,7 +21,7 @@ EVENT_RING = "ring"
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: SafeIntercomConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the call button event."""
     async_add_entities([SafeIntercomCallButton(entry.runtime_data.coordinator)])

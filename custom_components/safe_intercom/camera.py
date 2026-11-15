@@ -14,7 +14,7 @@ from typing import override
 from homeassistant.components.camera import Camera, CameraEntityFeature
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SafeIntercomConfigEntry
 from .api import STREAM_MAIN, STREAM_SUB, SafeIntercomAuthError, SafeIntercomError
@@ -48,7 +48,7 @@ STREAMS = (
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: SafeIntercomConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up a camera per video stream."""
     coordinator = entry.runtime_data.coordinator

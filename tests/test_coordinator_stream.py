@@ -70,7 +70,7 @@ async def stream(hass: HomeAssistant):
 
     coordinator._async_stream_wait = wait  # type: ignore[method-assign]
     updates: list[None] = []
-    coordinator.async_add_listener(lambda: updates.append(None))
+    coordinator.async_add_stream_listener(lambda: updates.append(None))
     task = asyncio.create_task(coordinator.async_run_event_stream())
     await _settle()
     yield coordinator, client, updates
@@ -214,7 +214,9 @@ async def test_rejected_stream_warns_once(
 
     coordinator._async_stream_wait = wait  # type: ignore[method-assign]
     states: list[bool] = []
-    coordinator.async_add_listener(lambda: states.append(coordinator.stream_connected))
+    coordinator.async_add_stream_listener(
+        lambda: states.append(coordinator.stream_connected)
+    )
     task = asyncio.create_task(coordinator.async_run_event_stream())
     try:
         await _settle()
@@ -244,3 +246,31 @@ async def test_stream_diagnostics(stream) -> None:
         "motion_unzoned": False,
         "inputs": {"1": True},
     }
+
+
+async def test_stream_changes_skip_coordinator_listeners(stream) -> None:
+    """Pushed state only wakes stream listeners, not every coordinator entity."""
+    coordinator, client, updates = stream
+    controller_updates: list[None] = []
+    remove = coordinator.async_add_listener(lambda: controller_updates.append(None))
+    before = len(updates)
+
+    await _send(client, _event("MotionDetection;1;0"))
+    await _send(client, _event("SensorInAlarm;1;0"))
+    await _send(client, CLOSE)
+    remove()  # also stops the poll timer the listener started
+
+    assert len(updates) == before + 3
+    assert controller_updates == []
+
+
+async def test_stream_listener_removal(stream) -> None:
+    """A removed stream listener is not called again."""
+    coordinator, client, _ = stream
+    calls: list[None] = []
+    remove = coordinator.async_add_stream_listener(lambda: calls.append(None))
+    await _send(client, _event("MotionDetection;1;0"))
+    remove()
+    await _send(client, _event("MotionDetection;0;0"))
+
+    assert len(calls) == 1
